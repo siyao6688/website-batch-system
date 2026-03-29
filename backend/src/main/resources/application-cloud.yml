@@ -39,7 +39,7 @@ spring:
 
 # 网站生成配置
 website:
-  output-path: /var/www/html
+  output-path: ./generated-websites
   templates-path: /var/www/html/templates
   nginx-config-path: /etc/nginx/sites-enabled
 

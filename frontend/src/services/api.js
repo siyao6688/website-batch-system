@@ -4,16 +4,21 @@ const API_BASE_URL = '/api';
 
 const api = axios.create({
     baseURL: API_BASE_URL,
-    timeout: 10000,
-    headers: {
-        'Content-Type': 'application/json'
-    }
+    timeout: 10000
 });
 
 // 请求拦截器
 api.interceptors.request.use(
     config => {
+        // 添加CORS相关头部
+        config.headers['Accept'] = 'application/json';
+
         // 可以在这里添加token
+        const token = localStorage.getItem('token');
+        if (token) {
+            config.headers['Authorization'] = `Bearer ${token}`;
+        }
+
         return config;
     },
     error => {
@@ -104,15 +109,20 @@ export const excelApi = {
         const formData = new FormData();
         formData.append('file', file);
         console.log('FormData entries:', Array.from(formData.entries()));
-        return api.post('/excel/upload', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data'
-            }
-        });
+        return api.post('/excel/upload', formData);
     },
 
     // 获取导入的公司列表
     getImportedCompanies: (params) => api.get('/excel/companies', { params })
+};
+
+// 认证相关API
+export const authApi = {
+    // 登录
+    login: (data) => api.post('/auth/login', data),
+
+    // 验证token
+    validateToken: (token) => api.get('/auth/validate', { params: { token } })
 };
 
 export default api;

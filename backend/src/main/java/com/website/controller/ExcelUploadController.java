@@ -37,12 +37,21 @@ public class ExcelUploadController {
             // 检查文件类型
             String contentType = file.getContentType();
             log.info("File content type: {}", contentType);
+            String originalFilename = file.getOriginalFilename();
+            String extension = "";
+            if (originalFilename != null && originalFilename.contains(".")) {
+                extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
+            }
+            boolean validExtension = extension.equals(".xls") || extension.equals(".xlsx") || extension.equals(".csv");
             if (contentType == null || !(contentType.equals("application/vnd.ms-excel") ||
                     contentType.equals("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") ||
                     contentType.equals("text/csv") ||
                     contentType.equals("application/csv"))) {
-                log.warn("Unsupported file type: {}", contentType);
-                return ResponseEntity.badRequest().body("不支持的文件类型: " + contentType + "，请上传Excel或CSV文件");
+                // If content type is not allowed, check extension
+                if (!validExtension) {
+                    log.warn("Unsupported file type: {}, extension: {}", contentType, extension);
+                    return ResponseEntity.badRequest().body("不支持的文件类型: " + contentType + "，请上传Excel或CSV文件");
+                }
             }
 
             // 解析Excel文件

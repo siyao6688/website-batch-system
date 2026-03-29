@@ -30,6 +30,44 @@ public class CompanyService {
     private final WebsiteGeneratorService generatorService;
     private final ServerDeploymentService deploymentService;
 
+    /**
+     * 根据公司名称和域名选择模板
+     * 使用公司名称+域名的哈希值来分配不同的模板，确保相同公司不同域名使用不同样式
+     */
+    private WebsiteTemplate selectTemplateByCompanyAndDomain(String companyName, String domain) {
+        // 获取所有激活的模板
+        List<WebsiteTemplate> activeTemplates = templateRepository.findByIsActive(true);
+        if (activeTemplates.isEmpty()) {
+            throw new EntityNotFoundException("No active template found");
+        }
+
+        // 按模板代码排序，确保一致性
+        activeTemplates.sort((a, b) -> a.getTemplateCode().compareTo(b.getTemplateCode()));
+
+        // 计算公司名称+域名的哈希值
+        String combinedKey = companyName + "|" + domain;
+        int hash = combinedKey.hashCode();
+        // 确保哈希值为正数
+        int positiveHash = hash & Integer.MAX_VALUE;
+        // 根据哈希值选择模板
+        int templateIndex = positiveHash % activeTemplates.size();
+
+        WebsiteTemplate selectedTemplate = activeTemplates.get(templateIndex);
+        log.info("为公司 {} 域名 {} 选择模板: {} (组合键: {}, 哈希: {}, 索引: {})",
+                companyName, domain, selectedTemplate.getTemplateCode(), combinedKey, hash, templateIndex);
+
+        return selectedTemplate;
+    }
+
+    /**
+     * 根据域名选择模板（兼容旧版本）
+     * 使用公司名称+域名的哈希值来分配不同的模板
+     */
+    private WebsiteTemplate selectTemplateByDomain(String domain) {
+        // 如果没有公司名称，只使用域名（向后兼容）
+        return selectTemplateByCompanyAndDomain("", domain);
+    }
+
     public List<Company> getAllCompanies(Boolean isActive) {
         if (isActive != null) {
             return companyRepository.findByIsActiveAndIsDeletedFalse(isActive);
@@ -101,22 +139,43 @@ public class CompanyService {
     @Transactional
     public Company updateCompany(Long id, Company companyDetails) {
         Company company = getCompanyById(id);
-        company.setCompanyName(companyDetails.getCompanyName());
-        company.setEmail(companyDetails.getEmail());
 
-        // 确保域名以.cn结尾
-        String domain = companyDetails.getDomain();
-        if (domain != null && !domain.trim().isEmpty()) {
-            domain = domain.trim();
-            if (!domain.toLowerCase().endsWith(".cn")) {
-                domain = domain + ".cn";
-            }
-            company.setDomain(domain);
-        } else {
-            company.setDomain(null);
+        // 部分更新：只更新非null字段
+        if (companyDetails.getCompanyName() != null) {
+            company.setCompanyName(companyDetails.getCompanyName());
+        }
+        if (companyDetails.getEmail() != null) {
+            company.setEmail(companyDetails.getEmail());
         }
 
-        company.setIcpNumber(companyDetails.getIcpNumber());
+        // 确保域名以.cn结尾（只有提供域名时才更新）
+        String domain = companyDetails.getDomain();
+        if (domain != null) {
+            if (!domain.trim().isEmpty()) {
+                domain = domain.trim();
+                if (!domain.toLowerCase().endsWith(".cn")) {
+                    domain = domain + ".cn";
+                }
+                company.setDomain(domain);
+            } else {
+                // 空字符串表示清除域名
+                company.setDomain(null);
+            }
+        }
+        // 如果domain为null，则不更新域名字段
+
+        if (companyDetails.getIcpNumber() != null) {
+            company.setIcpNumber(companyDetails.getIcpNumber());
+        }
+
+        // 更新模板ID和网站状态（如果提供）
+        if (companyDetails.getTemplateId() != null) {
+            company.setTemplateId(companyDetails.getTemplateId());
+        }
+        if (companyDetails.getHasWebsite() != null) {
+            company.setHasWebsite(companyDetails.getHasWebsite());
+        }
+
         return companyRepository.save(company);
     }
 
@@ -132,22 +191,14 @@ public class CompanyService {
 
         // 查找模板
         WebsiteTemplate template;
-        if (company.getTemplateId() != null) {
-            template = templateRepository.findById(company.getTemplateId())
+        Long templateIdToUse = company.getTemplateId();
+        if (templateIdToUse != null) {
+            template = templateRepository.findById(templateIdToUse)
                     .orElseThrow(() -> new EntityNotFoundException("Template not found"));
         } else {
-            // 先尝试查找标准模板
-            Optional<WebsiteTemplate> standardTemplate = templateRepository.findByIsStandardAndIsActive(true, true);
-            if (standardTemplate.isPresent()) {
-                template = standardTemplate.get();
-            } else {
-                // 如果没有标准模板，使用第一个激活的模板
-                List<WebsiteTemplate> activeTemplates = templateRepository.findByIsActive(true);
-                if (activeTemplates.isEmpty()) {
-                    throw new EntityNotFoundException("No active template found");
-                }
-                template = activeTemplates.get(0);
-            }
+            template = selectTemplateByCompanyAndDomain(company.getCompanyName(), company.getDomain());
+            templateIdToUse = template.getId();
+            log.info("预览网站使用根据公司名称和域名选择的模板: {} {} -> {}", company.getCompanyName(), company.getDomain(), template.getTemplateCode());
         }
 
         // 生成网站（使用预览域名，避免与正式网站冲突）
@@ -159,7 +210,7 @@ public class CompanyService {
         previewCompany.setEmail(company.getEmail());
         previewCompany.setIcpNumber(company.getIcpNumber());
         previewCompany.setHasWebsite(company.getHasWebsite());
-        previewCompany.setTemplateId(company.getTemplateId());
+        previewCompany.setTemplateId(templateIdToUse);
 
         // 生成网站并返回路径（预览模式）
         return generatorService.generateWebsite(previewCompany, template, true);
@@ -172,24 +223,13 @@ public class CompanyService {
             throw new IllegalArgumentException("Cannot publish company without a website");
         }
 
-        // 查找模板：如果公司有指定模板ID，使用指定模板；否则使用默认模板
+        // 查找模板：如果公司有指定模板ID，使用指定模板；否则根据域名选择模板
         WebsiteTemplate template;
         if (company.getTemplateId() != null) {
             template = templateRepository.findById(company.getTemplateId())
                     .orElseThrow(() -> new EntityNotFoundException("Template not found"));
         } else {
-            // 先尝试查找标准模板
-            Optional<WebsiteTemplate> standardTemplate = templateRepository.findByIsStandardAndIsActive(true, true);
-            if (standardTemplate.isPresent()) {
-                template = standardTemplate.get();
-            } else {
-                // 如果没有标准模板，使用第一个激活的模板
-                List<WebsiteTemplate> activeTemplates = templateRepository.findByIsActive(true);
-                if (activeTemplates.isEmpty()) {
-                    throw new EntityNotFoundException("No active template found");
-                }
-                template = activeTemplates.get(0);
-            }
+            template = selectTemplateByCompanyAndDomain(company.getCompanyName(), company.getDomain());
             // 将模板ID设置到公司记录中
             company.setTemplateId(template.getId());
         }
@@ -282,21 +322,7 @@ public class CompanyService {
         Company company = companyRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new EntityNotFoundException("Company not found"));
 
-        // 检查是否已发布，如果已发布，需要先取消发布
-        if (company.getIsPublished() != null && company.getIsPublished()) {
-            // 先取消发布，但不删除网站文件
-            company.setIsPublished(false);
-            company.setPublishDate(null);
-        }
-
-        // 修改域名以避免唯一约束冲突
-        String originalDomain = company.getDomain();
-        if (originalDomain != null && !originalDomain.contains("_deleted_")) {
-            String newDomain = originalDomain + "_deleted_" + System.currentTimeMillis();
-            company.setDomain(newDomain);
-        }
-
-        // 软删除：标记为已删除
+        // 软删除：标记为已删除，但不取消发布、不修改域名，以保持已发布网站正常运行
         company.setIsDeleted(true);
         company.setDeletedAt(LocalDateTime.now());
         companyRepository.save(company);

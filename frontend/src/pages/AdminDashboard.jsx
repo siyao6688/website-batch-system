@@ -16,6 +16,7 @@ import {
 import { companyApi, templateApi, excelApi } from '../services/api';
 import './AdminDashboard.css';
 import CompanyList from './CompanyList';
+import TemplatePreviewModal from '../components/TemplatePreviewModal';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -41,6 +42,9 @@ const AdminDashboard = () => {
 
   // 模板列表
   const [templates, setTemplates] = useState([]);
+  const [previewTemplate, setPreviewTemplate] = useState(null);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [username, setUsername] = useState('');
 
   // 当前选中的菜单项
   const [selectedMenuKey, setSelectedMenuKey] = useState('overview');
@@ -285,11 +289,8 @@ const AdminDashboard = () => {
       }
     } catch (error) {
       console.error('获取导入的公司列表失败:', error);
-      if (error.response) {
-        message.error('获取公司列表失败：' + (error.response.data || error.message));
-      } else {
-        message.error('获取公司列表失败：' + (error.message || '网络错误'));
-      }
+      const errorMsg = error.response?.data?.message || error.response?.data || error.message || '网络错误';
+      message.error('获取公司列表失败：' + errorMsg);
     } finally {
       setExcelLoading(false);
     }
@@ -305,21 +306,21 @@ const AdminDashboard = () => {
       console.log('file object:', fileToUpload);
       const response = await excelApi.uploadExcel(fileToUpload);
       console.log('upload response:', response);
-      message.success('Excel导入成功');
+      if (response.status === 207) {
+          message.warning(response.data);
+      } else {
+          message.success('Excel导入成功');
+          setExcelModalVisible(false); // 关闭弹窗
+      }
       // 调用 Ant Design 的 onSuccess 回调
       if (onSuccess) {
         onSuccess(response.data, file, response);
       }
       loadData(); // 刷新主数据
-      setExcelModalVisible(false); // 关闭弹窗
     } catch (error) {
       console.error('导入错误:', error);
-      let errorMessage = 'Excel导入失败';
-      if (error.response) {
-        errorMessage += `：${error.response.data || error.message}`;
-      } else {
-        errorMessage += `：${error.message || '网络错误'}`;
-      }
+      const errorDetail = error.response?.data?.message || error.response?.data || error.message || '网络错误';
+      let errorMessage = 'Excel导入失败：' + errorDetail;
       message.error(errorMessage);
       // 调用 Ant Design 的 onError 回调
       if (onError) {
@@ -333,6 +334,18 @@ const AdminDashboard = () => {
   const handleExcelImportClick = () => {
     setExcelModalVisible(true);
   };
+
+  // 认证检查
+  useEffect(() => {
+    const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+    if (!isAuthenticated) {
+      navigate('/login');
+      message.warning('请先登录系统');
+    } else {
+      const savedUsername = localStorage.getItem('username') || '管理员';
+      setUsername(savedUsername);
+    }
+  }, [navigate]);
 
   // 加载数据
   useEffect(() => {
@@ -358,7 +371,8 @@ const AdminDashboard = () => {
         setTemplates(templatesResponse.data);
       }
     } catch (error) {
-      message.error('加载数据失败：' + (error.message || '未知错误'));
+      const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
+      message.error('加载数据失败：' + errorMsg);
     } finally {
       setLoading(false);
     }
@@ -405,7 +419,8 @@ const AdminDashboard = () => {
 
   // 模板操作函数
   const handleTemplateView = (record) => {
-    message.info(`预览模板: ${record.templateName}`);
+    setPreviewTemplate(record);
+    setPreviewVisible(true);
   };
 
   const handleTemplateEdit = (record) => {
@@ -425,7 +440,8 @@ const AdminDashboard = () => {
           message.success('模板删除成功');
           loadTemplates(); // 刷新模板列表
         } catch (error) {
-          message.error('删除失败: ' + (error.message || '未知错误'));
+          const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
+          message.error('删除失败: ' + errorMsg);
         }
       }
     });
@@ -475,7 +491,8 @@ const AdminDashboard = () => {
       message.success('发布成功');
       loadData();
     } catch (error) {
-      message.error('发布失败：' + (error.message || '未知错误'));
+      const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
+      message.error('发布失败：' + errorMsg);
     }
   };
 
@@ -486,7 +503,8 @@ const AdminDashboard = () => {
       message.success('已取消发布');
       loadData();
     } catch (error) {
-      message.error('操作失败：' + (error.message || '未知错误'));
+      const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
+      message.error('操作失败：' + errorMsg);
     }
   };
 
@@ -497,7 +515,8 @@ const AdminDashboard = () => {
       message.success('删除成功');
       loadData();
     } catch (error) {
-      message.error('删除失败：' + (error.message || '未知错误'));
+      const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
+      message.error('删除失败：' + errorMsg);
     }
   };
 
@@ -513,6 +532,22 @@ const AdminDashboard = () => {
       message.error('预览失败：' + (error.response?.data || error.message));
       console.error(error);
     }
+  };
+
+  // 退出登录
+  const handleLogout = () => {
+    Modal.confirm({
+      title: '确认退出',
+      content: '确定要退出登录吗？',
+      okText: '确认退出',
+      cancelText: '取消',
+      onOk: () => {
+        localStorage.removeItem('isAuthenticated');
+        localStorage.removeItem('username');
+        message.success('已退出登录');
+        navigate('/login');
+      }
+    });
   };
 
   // 表格行选择
@@ -610,6 +645,29 @@ const AdminDashboard = () => {
               }}>
                 <Button icon={<PlusOutlined />}>
                   新增
+                </Button>
+              </Dropdown>
+              <Dropdown menu={{
+                items: [
+                  {
+                    key: 'profile',
+                    icon: <UserOutlined />,
+                    label: '个人资料',
+                    onClick: () => message.info('个人资料功能开发中')
+                  },
+                  {
+                    type: 'divider'
+                  },
+                  {
+                    key: 'logout',
+                    icon: <ExportOutlined />,
+                    label: '退出登录',
+                    onClick: handleLogout
+                  }
+                ]
+              }}>
+                <Button type="text" icon={<UserOutlined />} style={{ color: '#1890ff' }}>
+                  {username}
                 </Button>
               </Dropdown>
             </Space>
@@ -771,7 +829,8 @@ const AdminDashboard = () => {
               setIsModalVisible(false);
               loadData();
             } catch (error) {
-              message.error('操作失败：' + (error.message || '未知错误'));
+              const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
+              message.error('操作失败：' + errorMsg);
             }
           }}
         >
@@ -966,18 +1025,34 @@ const AdminDashboard = () => {
         <Form
           layout="vertical"
           initialValues={{
-            hasWebsite: true
+            hasWebsite: true,
+            publishNow: true
           }}
           onFinish={async (values) => {
             try {
               if (selectedCompany) {
-                await companyApi.publishCompany(selectedCompany.id);
-                message.success('网站生成成功！');
+                // 先更新公司信息：设置模板ID和hasWebsite为true
+                const updateData = {
+                  templateId: values.templateId,
+                  hasWebsite: true
+                };
+                await companyApi.updateCompany(selectedCompany.id, updateData);
+
+                if (values.publishNow === true || values.publishNow === 'true') {
+                  // 立即发布
+                  await companyApi.publishCompany(selectedCompany.id);
+                  message.success('网站生成并发布成功！');
+                } else {
+                  // 仅保存为草稿
+                  message.success('网站已保存为草稿！');
+                }
               }
               setIsDraftVisible(false);
               loadData();
             } catch (error) {
-              message.error('生成失败：' + (error.message || '未知错误'));
+              const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
+              message.error('生成失败：' + errorMsg);
+              console.error('生成网站失败:', error);
             }
           }}
         >
@@ -1002,9 +1077,8 @@ const AdminDashboard = () => {
           <Form.Item
             label="是否立即发布"
             name="publishNow"
-            valuePropName="checked"
           >
-            <Select defaultValue={true}>
+            <Select>
               <Select.Option value={true}>是 - 生成后立即发布</Select.Option>
               <Select.Option value={false}>否 - 保存为草稿</Select.Option>
             </Select>
@@ -1074,6 +1148,13 @@ const AdminDashboard = () => {
         </Card>
 
       </Modal>
+
+      {/* 模板预览模态框 */}
+      <TemplatePreviewModal
+        open={previewVisible}
+        onCancel={() => setPreviewVisible(false)}
+        template={previewTemplate}
+      />
     </Layout>
   );
 };

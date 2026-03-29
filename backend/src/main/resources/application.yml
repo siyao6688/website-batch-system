@@ -30,16 +30,20 @@ spring:
   thymeleaf:
     enabled: false
 
+  sql:
+    init:
+      mode: always
+
 # 网站生成配置
 website:
-  output-path: /var/www/html
+  output-path: ./generated-websites
   templates-path: src/main/resources/templates
   nginx-config-path: /etc/nginx/sites-enabled
   preview-output-path: ./preview-websites
 
   # 服务器部署配置
   deployment:
-    enabled: true
+    enabled: false
     server:
       host: 124.223.45.101
       port: 22
@@ -50,6 +54,7 @@ website:
       nginx-sites-available: /etc/nginx/sites-available
       nginx-sites-enabled: /etc/nginx/sites-enabled
       nginx-reload-command: systemctl reload nginx
+
 
 logging:
   level:

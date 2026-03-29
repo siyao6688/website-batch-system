@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Form, Input, DatePicker, Button, Space, message, Card, Divider, Switch, Row, Col, Tag } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, SaveOutlined, EyeTwoTone, EyeInvisibleOutlined } from '@ant-design/icons';
 import { companyApi } from '../services/api';
 
 const { TextArea } = Input;

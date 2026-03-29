@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -17,16 +16,6 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Value("${website.preview-output-path:./preview-websites}")
     private String previewOutputPath;
-
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/api/**")
-                .allowedOrigins("http://localhost:5173", "http://127.0.0.1:5173")
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .allowedHeaders("*")
-                .allowCredentials(true)
-                .maxAge(3600);
-    }
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
@@ -44,23 +33,37 @@ public class WebConfig implements WebMvcConfigurer {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
 
-        // 允许所有来源（生产环境应限制为特定域名）
+        // 允许的来源
         config.addAllowedOrigin("http://localhost:5173");
         config.addAllowedOrigin("http://127.0.0.1:5173");
 
-        // 允许所有请求头
-        config.addAllowedHeader("*");
+        // 允许的HTTP方法
+        config.addAllowedMethod("OPTIONS");
+        config.addAllowedMethod("GET");
+        config.addAllowedMethod("POST");
+        config.addAllowedMethod("PUT");
+        config.addAllowedMethod("DELETE");
+        config.addAllowedMethod("PATCH");
 
-        // 允许所有HTTP方法
-        config.addAllowedMethod("*");
+        // 允许的请求头
+        config.addAllowedHeader("Origin");
+        config.addAllowedHeader("Content-Type");
+        config.addAllowedHeader("Accept");
+        config.addAllowedHeader("Authorization");
+        config.addAllowedHeader("X-Requested-With");
 
-        // 允许携带凭证（如cookies）
+        // 允许暴露的响应头
+        config.addExposedHeader("Authorization");
+        config.addExposedHeader("Content-Disposition");
+
+        // 允许携带凭证
         config.setAllowCredentials(true);
 
-        // 设置预检请求的缓存时间（单位：秒）
+        // 预检请求缓存时间（秒）
         config.setMaxAge(3600L);
 
-        source.registerCorsConfiguration("/api/**", config);
+        // 注册CORS配置，应用于所有路径
+        source.registerCorsConfiguration("/**", config);
         return new CorsFilter(source);
     }
 }

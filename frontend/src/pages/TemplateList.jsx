@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react';
 import { Table, Button, Space, Tag, message } from 'antd';
 import { PlusOutlined, EditOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons';
 import { templateApi } from '../services/api';
+import TemplatePreviewModal from '../components/TemplatePreviewModal';
 
 const TemplateList = () => {
     const [templates, setTemplates] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [previewVisible, setPreviewVisible] = useState(false);
+    const [previewTemplate, setPreviewTemplate] = useState(null);
 
     const fetchTemplates = async () => {
         setLoading(true);
@@ -102,8 +105,8 @@ const TemplateList = () => {
     ];
 
     const handleView = (record) => {
-        // TODO: 实现模板预览功能
-        message.info(`预览模板: ${record.templateName}`);
+        setPreviewTemplate(record);
+        setPreviewVisible(true);
     };
 
     const handleEdit = (record) => {
@@ -131,6 +134,11 @@ const TemplateList = () => {
                     showSizeChanger: true,
                     showTotal: (total) => `共 ${total} 条`,
                 }}
+            />
+            <TemplatePreviewModal
+                open={previewVisible}
+                onCancel={() => setPreviewVisible(false)}
+                template={previewTemplate}
             />
         </div>
     );

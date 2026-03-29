@@ -9,13 +9,15 @@ import CompanyEdit from './pages/CompanyEdit';
 import TemplateList from './pages/TemplateList';
 import ExcelUpload from './pages/ExcelUpload';
 import AdminDashboard from './pages/AdminDashboard';
+import LoginPage from './pages/LoginPage';
 
 function App() {
     return (
         <ConfigProvider locale={zhCN}>
             <BrowserRouter>
                 <Routes>
-                    <Route path="/" element={<Navigate to="/admin" replace />} />
+                    <Route path="/" element={<Navigate to="/login" replace />} />
+                    <Route path="/login" element={<LoginPage />} />
                     <Route path="/admin" element={<AdminDashboard />} />
                     <Route path="/companies" element={<CompanyList />} />
                     <Route path="/companies/:id" element={<CompanyDetail />} />
