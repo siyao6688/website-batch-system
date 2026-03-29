@@ -7,147 +7,91 @@ on:
       - '**/*.md'
       - '**/.gitignore'
       - '**/.claude/**'
-  pull_request:
-    branches: [main]
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-
-    - name: Build backend
+    - name: Build and test backend
       working-directory: ./backend
       run: |
         mvn clean package -DskipTests
         echo "Backend build completed"
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: frontend/package-lock.json
-
-    - name: Install frontend dependencies
-      working-directory: ./frontend
-      run: npm ci
-
     - name: Build frontend
       working-directory: ./frontend
-      run: npm run build
+      run: |
+        npm ci
+        npm run build
       env:
         NODE_ENV: production
 
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: website-batch-system
-        path: |
-          backend/target/*.jar
-          frontend/dist/
-        retention-days: 7
-
   deploy:
-    needs: build
+    needs: build-and-test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-
-    steps:
-    - name: Download artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: website-batch-system
-
-    - name: Deploy to server via SSH
-      uses: appleboy/ssh-action@v1.0.0
-      with:
-        host: ${{ secrets.SERVER_HOST }}
-        username: ${{ secrets.SERVER_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        port: ${{ secrets.SERVER_PORT }}
-        script: |
-          # Create deployment directory
-          mkdir -p /opt/website-batch-system/backend/target
-          mkdir -p /opt/website-batch-system/frontend/dist
-          mkdir -p /opt/website-batch-system/.github/workflows
-
-          # Stop existing services
-          cd /opt/website-batch-system
-          docker-compose down || true
-
-          echo "Stopped existing services"
-
-        script_stop: true
-      env:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-
-    - name: Copy files to server
-      run: |
-        # Create temporary directory with deployment files
-        mkdir -p deploy-files
-
-        # Copy backend JAR
-        cp backend/target/*.jar deploy-files/ 2>/dev/null || echo "No JAR files found"
-
-        # Copy frontend dist
-        cp -r frontend/dist/* deploy-files/ 2>/dev/null || echo "No frontend dist found"
-
-        # Copy docker-compose
-        cp docker-compose.yml deploy-files/
-
-        # Copy deployment script
-        cp deploy-server.sh deploy-files/
-
-        # Create tar archive
-        tar -czf deploy.tar.gz -C deploy-files .
-
-        # Copy to server using scp
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ssh_key
-        chmod 600 ssh_key
-        scp -i ssh_key -o StrictHostKeyChecking=no -P ${{ secrets.SERVER_PORT || 22 }} \
-          deploy.tar.gz ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/deploy.tar.gz
-
-        # Extract on server
-        ssh -i ssh_key -o StrictHostKeyChecking=no -p ${{ secrets.SERVER_PORT || 22 }} \
-          ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-          cd /opt/website-batch-system
-          tar -xzf /tmp/deploy.tar.gz -C .
-          chmod +x deploy-server.sh
-          docker-compose up -d --build
-          echo 'Deployment completed'
-        "
-
-  docker-build:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
+    - name: Deploy to server
+      uses: appleboy/ssh-action@v1.0.0
       with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+        host: ${{ secrets.SERVER_HOST }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.SERVER_PORT || 22 }}
+        script: |
+          echo "=== 开始部署网站批量处理系统 ==="
 
-    - name: Build and push backend image
-      uses: docker/build-push-action@v6
-      with:
-        context: ./backend
-        push: true
-        tags: ${{ secrets.DOCKER_USERNAME }}/website-batch-backend:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+          # 进入部署目录
+          cd /opt
+
+          # 如果目录不存在，克隆仓库
+          if [ ! -d "website-batch-system" ]; then
+            echo "克隆仓库..."
+            git clone https://github.com/${{ github.repository }}.git website-batch-system
+          fi
+
+          # 进入项目目录
+          cd website-batch-system
+
+          # 拉取最新代码
+          echo "拉取最新代码..."
+          git pull origin main
+
+          # 检查并安装Docker Compose（如果未安装）
+          if ! command -v docker-compose &> /dev/null; then
+            echo "安装Docker Compose..."
+            curl -L "https://github.com/docker/compose/releases/download/v2.23.3/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            chmod +x /usr/local/bin/docker-compose
+          fi
+
+          # 停止并重建服务
+          echo "重建Docker服务..."
+          docker-compose down || true
+          docker-compose up -d --build
+
+          # 等待服务启动
+          echo "等待服务启动..."
+          sleep 10
+
+          # 检查服务状态
+          echo "服务状态："
+          docker-compose ps
+
+          echo "=== 部署完成 ==="
+          echo "访问地址：http://${{ secrets.SERVER_HOST }}"
+
+    - name: Verify deployment
+      run: |
+        echo "部署完成，请在服务器上验证服务状态"
+        echo "检查命令："
+        echo "ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} 'cd /opt/website-batch-system && docker-compose ps'"
+        echo "访问地址：http://${{ secrets.SERVER_HOST }}"
