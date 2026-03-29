@@ -1,0 +1,12 @@
+Microsoft Windows [版本 10.0.22631.6199]
+(c) Microsoft Corporation。保留所有权利。
+
+D:\Code\website-batch-system>y
+'y' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+
+D:\Code\website-batch-system>y
+'y' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+
+D:\Code\website-batch-system>

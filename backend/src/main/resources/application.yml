@@ -1,0 +1,57 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: website-batch-system
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/website_batch_system?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: Aa123456.
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+  thymeleaf:
+    enabled: false
+
+# 网站生成配置
+website:
+  output-path: /var/www/html
+  templates-path: src/main/resources/templates
+  nginx-config-path: /etc/nginx/sites-enabled
+  preview-output-path: ./preview-websites
+
+  # 服务器部署配置
+  deployment:
+    enabled: true
+    server:
+      host: 124.223.45.101
+      port: 22
+      username: root
+      private-key-path: /path/to/your/private/key  # 请修改为实际私钥路径
+    remote:
+      web-root: /var/www/html
+      nginx-sites-available: /etc/nginx/sites-available
+      nginx-sites-enabled: /etc/nginx/sites-enabled
+      nginx-reload-command: systemctl reload nginx
+
+logging:
+  level:
+    com.website: debug
+    org.springframework.web: info

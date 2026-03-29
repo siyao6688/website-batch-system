@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(npm install:*)",
+      "Bash(python -c \"import openpyxl; wb = openpyxl.load_workbook\\(r''D:\\\\Code\\\\website-batch-system\\\\backend\\\\src\\\\main\\\\resources\\\\网站搭建模板.xlsx''\\); ws = wb.active; print\\([cell.value for cell in ws[1]]\\)\")",
+      "Bash(pip install:*)",
+      "Bash(dir *.log)",
+      "Bash(java -version)",
+      "Bash(mvn -version)"
+    ]
+  }
+}

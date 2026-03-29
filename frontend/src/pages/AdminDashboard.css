@@ -1,0 +1,352 @@
+/* 主布局样式 */
+.admin-layout {
+  min-height: 100vh;
+  background: #f0f2f5;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* 侧边栏样式 */
+.admin-sider {
+  background: linear-gradient(135deg, #001529 0%, #002140 100%);
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.25);
+  min-width: 260px;
+  max-width: 260px;
+  flex-shrink: 0;
+  border-radius: 0 16px 16px 0;
+}
+
+.admin-sider .logo-container {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  background: rgba(0, 33, 64, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+  backdrop-filter: blur(10px);
+}
+
+.logo-container .logo-icon {
+  font-size: 28px;
+  background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-right: 14px;
+  filter: drop-shadow(0 2px 4px rgba(24, 144, 255, 0.3));
+}
+
+.logo-container .logo-text {
+  font-size: 20px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #fff 0%, #e6f7ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: 0.8px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.menu-container {
+  padding: 24px 16px;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+/* 菜单项样式 */
+.menu-container .ant-menu {
+  background: transparent;
+  border-right: none;
+}
+
+.menu-container .ant-menu-item {
+  height: 48px;
+  line-height: 48px;
+  margin: 6px 0;
+  border-radius: 10px;
+  padding-left: 16px !important;
+  transition: all 0.3s ease;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.menu-container .ant-menu-item .ant-menu-item-icon {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.menu-container .ant-menu-item:hover {
+  background: rgba(24, 144, 255, 0.15);
+  transform: translateX(4px);
+}
+
+.menu-container .ant-menu-item-selected {
+  background: linear-gradient(135deg, rgba(24, 144, 255, 0.2) 0%, rgba(54, 207, 201, 0.2) 100%);
+  border-left: 4px solid #1890ff;
+  font-weight: 600;
+}
+
+.menu-container .ant-menu-item-selected .ant-menu-item-icon {
+  color: #1890ff;
+}
+
+.menu-container .ant-menu-item .ant-menu-item-icon {
+  font-size: 18px;
+  transition: all 0.3s ease;
+}
+
+/* 头部样式 */
+.admin-header {
+  background: #fff;
+  padding: 0 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  flex: 1;
+}
+
+.header-actions {
+  margin-left: auto;
+}
+
+/* 内容区域样式 */
+.admin-content {
+  padding: 24px 20px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-height: calc(100vh - 64px - 64px);
+}
+
+/* 卡片样式 */
+.main-card {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  margin-bottom: 24px;
+  background: #fff;
+  width: 100%;
+}
+
+.main-card .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fff;
+  width: 100%;
+}
+
+.main-card .card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+  margin: 0;
+}
+
+/* 概览卡片 */
+.ant-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  transition: all 0.3s ease;
+  background: #fff;
+}
+
+.ant-card .ant-card-head {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.ant-card .ant-card-body {
+  padding: 24px;
+  background: #fff;
+}
+
+/* 表格样式 */
+.ant-table {
+  border-radius: 8px;
+}
+
+.ant-table-thead > tr > th {
+  background: #fafafa;
+  font-weight: 600;
+  color: #262626;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.ant-table-tbody > tr > td {
+  background: #fff;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: #e6f7ff;
+}
+
+.ant-table-tbody > tr:hover {
+  background: #e6f7ff;
+}
+
+/* 模态框样式 */
+.ant-modal {
+  border-radius: 8px;
+}
+
+.ant-modal .ant-modal-content {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ant-modal .ant-modal-header {
+  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+  border-bottom: none;
+}
+
+.ant-modal .ant-modal-title {
+  color: #fff;
+  font-weight: 600;
+}
+
+.ant-modal .ant-modal-body {
+  padding: 24px;
+}
+
+.ant-modal .ant-modal-footer {
+  border-top: 1px solid #f0f0f0;
+  padding: 16px 24px;
+}
+
+/* 表单样式 */
+.ant-form-item-label > label {
+  font-weight: 500;
+  color: #262626;
+}
+
+.ant-input,
+.ant-select-selector,
+.ant-picker {
+  border-radius: 6px;
+  border: 1px solid #d9d9d9;
+}
+
+.ant-input:focus,
+.ant-select-selector:focus,
+.ant-input-focused,
+.ant-select-selector-focused,
+.ant-picker-focused {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+/* 按钮样式 */
+.ant-btn-primary {
+  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+  border: none;
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.3);
+}
+
+.ant-btn-primary:hover {
+  background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%);
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
+}
+
+.ant-btn-primary:active {
+  background: linear-gradient(135deg, #096dd9 0%, #0050b3 100%);
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.3);
+}
+
+.ant-btn {
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.ant-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.ant-btn:active {
+  transform: translateY(0);
+}
+
+/* 标签样式 */
+.ant-tag {
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 12px;
+}
+
+/* 统计卡片 */
+.statistic-value {
+  font-size: 28px !important;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.statistic-title {
+  font-size: 14px;
+  color: #8c8c8c;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* 暗色模式支持 */
+@media (prefers-color-scheme: dark) {
+  .admin-layout {
+    background: #141414;
+  }
+
+  .main-card {
+    background: #1f1f1f;
+    border: 1px solid #333;
+  }
+
+  .main-card .card-header {
+    border-bottom: 1px solid #333;
+  }
+
+  .main-card .card-title {
+    color: #fff;
+  }
+
+  .admin-header {
+    background: #1f1f1f;
+  }
+
+  .ant-table {
+    background: #1f1f1f;
+  }
+
+  .ant-table-thead > tr > th {
+    background: #2a2a2a;
+    color: #fff;
+  }
+
+  .ant-table-tbody > tr:hover > td {
+    background: #2a2a2a;
+  }
+}

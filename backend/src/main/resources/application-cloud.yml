@@ -1,0 +1,49 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: website-batch-system
+
+  datasource:
+    # 本地MySQL连接配置
+    # 注意：需要先在服务器上安装MySQL并创建数据库
+    # 创建数据库命令：
+    # mysql -u root -p
+    # CREATE DATABASE website_batch_system CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    # GRANT ALL PRIVILEGES ON website_batch_system.* TO 'root'@'localhost';
+    # FLUSH PRIVILEGES;
+    url: jdbc:mysql://localhost:3306/website_batch_system?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: Aa123456.
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+  thymeleaf:
+    enabled: false
+
+# 网站生成配置
+website:
+  output-path: /var/www/html
+  templates-path: /var/www/html/templates
+  nginx-config-path: /etc/nginx/sites-enabled
+
+logging:
+  level:
+    com.website: debug
+    org.springframework.web: info
