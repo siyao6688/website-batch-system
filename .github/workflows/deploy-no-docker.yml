@@ -1,0 +1,174 @@
+name: Deploy Without Docker
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - '**/.gitignore'
+      - '**/.claude/**'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Build backend
+      working-directory: ./backend
+      run: |
+        mvn clean package -DskipTests
+        echo "Backend JAR文件生成完成"
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install frontend dependencies
+      working-directory: ./frontend
+      run: npm ci
+
+    - name: Build frontend
+      working-directory: ./frontend
+      run: npm run build
+      env:
+        NODE_ENV: production
+
+    - name: List build artifacts
+      run: |
+        echo "=== 构建产物 ==="
+        ls -la backend/target/*.jar || echo "未找到JAR文件"
+        echo "前端构建目录："
+        ls -la frontend/dist/ || echo "未找到dist目录"
+
+  deploy:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build again (确保有最新代码)
+      run: |
+        cd backend && mvn clean package -DskipTests
+        cd ../frontend && npm ci && npm run build
+
+    - name: Deploy to server
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.SERVER_HOST }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.SERVER_PORT || 22 }}
+        script: |
+          echo "=== 开始无Docker部署 ==="
+          echo "时间: $(date)"
+          echo "用户: $(whoami)"
+          echo "目录: $(pwd)"
+
+          # 1. 创建部署目录
+          echo "创建部署目录..."
+          mkdir -p /opt/website-batch-system/backend
+          mkdir -p /var/www/html
+          mkdir -p /tmp/deploy-cache
+
+          # 2. 停止现有服务
+          echo "停止现有服务..."
+          systemctl stop website-batch-system || true
+
+          # 3. 传输文件到服务器
+          echo "传输文件..."
+
+          # 创建临时SSH密钥文件
+          cat > /tmp/deploy-key << 'EOF'
+          ${{ secrets.SSH_PRIVATE_KEY }}
+          EOF
+          chmod 600 /tmp/deploy-key
+
+          # 传输后端JAR
+          scp -i /tmp/deploy-key -o StrictHostKeyChecking=no \
+            ${{ github.workspace }}/backend/target/*.jar \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/deploy-cache/backend.jar
+
+          # 传输前端文件
+          tar -czf /tmp/frontend.tar.gz -C ${{ github.workspace }}/frontend/dist .
+          scp -i /tmp/deploy-key -o StrictHostKeyChecking=no \
+            /tmp/frontend.tar.gz \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/deploy-cache/frontend.tar.gz
+
+          # 4. 在服务器上部署
+          echo "在服务器上部署文件..."
+          ssh -i /tmp/deploy-key -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+            # 备份旧文件
+            timestamp=\$(date +%Y%m%d_%H%M%S)
+            if [ -f /opt/website-batch-system/backend/*.jar ]; then
+              cp /opt/website-batch-system/backend/*.jar /opt/website-batch-system/backend/backup_\$timestamp.jar
+            fi
+
+            # 部署新文件
+            cp /tmp/deploy-cache/backend.jar /opt/website-batch-system/backend/website-batch-system-1.0.0.jar
+
+            # 解压前端文件
+            rm -rf /var/www/html/*
+            tar -xzf /tmp/deploy-cache/frontend.tar.gz -C /var/www/html/
+            chown -R www-data:www-data /var/www/html || chown -R nginx:nginx /var/www/html
+
+            # 重启服务
+            systemctl start website-batch-system || echo '服务启动失败，可能需要首次配置'
+
+            # 清理临时文件
+            rm -rf /tmp/deploy-cache
+
+            echo '文件部署完成'
+          "
+
+          # 5. 验证部署
+          echo "验证部署..."
+          ssh -i /tmp/deploy-key -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+            echo '=== 部署验证 ==='
+            echo '后端服务状态:'
+            systemctl status website-batch-system --no-pager || echo '服务未运行'
+            echo ''
+            echo 'Nginx状态:'
+            systemctl status nginx --no-pager || echo 'Nginx未安装'
+            echo ''
+            echo '文件检查:'
+            ls -la /opt/website-batch-system/backend/*.jar || echo '未找到JAR文件'
+            ls -la /var/www/html/index.html || echo '未找到前端文件'
+            echo ''
+            echo '端口检查:'
+            netstat -tulpn | grep -E ':80|:8080' || echo '端口未监听'
+          "
+
+          # 清理本地临时文件
+          rm -f /tmp/deploy-key /tmp/frontend.tar.gz
+
+          echo "=== 部署完成 ==="
+          echo "访问地址: http://${{ secrets.SERVER_HOST }}"
+          echo "API地址: http://${{ secrets.SERVER_HOST }}/api/"
+
+    - name: Deployment summary
+      run: |
+        echo "=== 部署摘要 ==="
+        echo "项目: ${{ github.repository }}"
+        echo "分支: ${{ github.ref }}"
+        echo "提交: ${{ github.sha }}"
+        echo "服务器: ${{ secrets.SERVER_HOST }}"
+        echo "部署方式: 无Docker传统部署"
+        echo "=================="
