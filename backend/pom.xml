@@ -79,9 +79,9 @@
 
         <!-- JSch for SSH connection -->
         <dependency>
-            <groupId>com.jcraft</groupId>
+            <groupId>com.github.mwiede</groupId>
             <artifactId>jsch</artifactId>
-            <version>0.1.55</version>
+            <version>0.2.17</version>
         </dependency>
 
         <!-- Apache Commons IO for file operations -->

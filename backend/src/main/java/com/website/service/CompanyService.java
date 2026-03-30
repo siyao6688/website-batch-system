@@ -238,7 +238,12 @@ public class CompanyService {
         Path websitePath = generatorService.generateWebsite(company, template);
 
         // 部署网站到服务器
-        deploymentService.deployWebsite(company.getDomain(), websitePath);
+        try {
+            deploymentService.deployWebsite(company.getDomain(), websitePath);
+        } catch (Exception e) {
+            log.error("部署网站到服务器失败：{}", company.getDomain(), e);
+            throw new RuntimeException("部署失败：" + e.getMessage() + "。请检查服务器配置和 SSH 连接。", e);
+        }
 
         // 生成本地Nginx配置文件（供手动部署）
         deploymentService.generateLocalNginxConfig(company.getDomain(), websitePath);
