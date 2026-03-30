@@ -219,8 +219,9 @@ public class CompanyService {
     @Transactional
     public Company publishCompany(Long id) throws Exception {
         Company company = getCompanyById(id);
-        if (!company.getHasWebsite()) {
-            throw new IllegalArgumentException("Cannot publish company without a website");
+        // 自动设置 hasWebsite 为 true（兼容旧数据）
+        if (company.getHasWebsite() == null || !company.getHasWebsite()) {
+            company.setHasWebsite(true);
         }
 
         // 查找模板：如果公司有指定模板ID，使用指定模板；否则根据域名选择模板

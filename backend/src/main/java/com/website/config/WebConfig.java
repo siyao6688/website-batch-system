@@ -22,23 +22,25 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // 映射预览网站目录到 /api/preview/** URL路径
+        // 映射预览网站目录到 /api/preview/** URL 路径
         String absolutePreviewPath = Paths.get(previewOutputPath).toAbsolutePath().toString();
         if (!absolutePreviewPath.endsWith("/")) {
             absolutePreviewPath += "/";
         }
-        registry.addResourceHandler("/api/preview/**", "/preview/**")
+        // 主预览路径 - 处理 index.html 等文件
+        registry.addResourceHandler("/api/preview/**")
                 .addResourceLocations("file:" + absolutePreviewPath);
 
-        // 映射预览网站的静态资源 - 支持相对路径访问
+        // 预览网站的静态资源路径 - 支持 /api/preview/{domain}/static/** 格式
+        // 使用通配符映射所有预览域名的 static 目录
         registry.addResourceHandler("/api/preview/*/static/**")
                 .addResourceLocations("file:" + absolutePreviewPath);
 
-        // 映射预览网站的静态资源到 /preview-static/** URL路径（备用）
-        registry.addResourceHandler("/preview-static/**")
+        // 备用预览路径
+        registry.addResourceHandler("/preview/**")
                 .addResourceLocations("file:" + absolutePreviewPath);
 
-        // 映射模板静态资源到 /static/** URL路径
+        // 映射模板静态资源到 /static/** URL 路径
         String absoluteTemplatePath = Paths.get(templatesPath).toAbsolutePath().toString();
         if (!absoluteTemplatePath.endsWith("/")) {
             absoluteTemplatePath += "/";
@@ -62,7 +64,7 @@ public class WebConfig implements WebMvcConfigurer {
         // 允许所有来源用于测试（生产环境应限制）
         config.addAllowedOriginPattern("*");
 
-        // 允许的HTTP方法
+        // 允许的 HTTP 方法
         config.addAllowedMethod("OPTIONS");
         config.addAllowedMethod("GET");
         config.addAllowedMethod("POST");
@@ -87,7 +89,7 @@ public class WebConfig implements WebMvcConfigurer {
         // 预检请求缓存时间（秒）
         config.setMaxAge(3600L);
 
-        // 注册CORS配置，应用于所有路径
+        // 注册 CORS 配置，应用于所有路径
         source.registerCorsConfiguration("/**", config);
         return new CorsFilter(source);
     }

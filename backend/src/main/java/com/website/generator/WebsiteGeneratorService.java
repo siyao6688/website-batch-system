@@ -57,6 +57,12 @@ public class WebsiteGeneratorService {
             String basePath = preview ? previewOutputPath : outputPath;
             // 1. 生成网站内容
             Map<String, Object> data = buildWebsiteData(company);
+            // 预览模式添加静态资源基础路径
+            if (preview) {
+                data.put("staticPath", "/api/preview/" + company.getDomain() + "/static");
+            } else {
+                data.put("staticPath", "static");
+            }
 
             // 2. 加载模板
             String templateContent = loadTemplate(template.getTemplateCode());
