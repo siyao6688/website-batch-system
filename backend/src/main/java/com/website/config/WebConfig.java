@@ -17,15 +17,30 @@ public class WebConfig implements WebMvcConfigurer {
     @Value("${website.preview-output-path:./preview-websites}")
     private String previewOutputPath;
 
+    @Value("${website.templates-path:src/main/resources/templates}")
+    private String templatesPath;
+
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // 映射预览网站目录到 /preview/** URL路径
+        // 映射预览网站目录到 /api/preview/** URL路径
         String absolutePreviewPath = Paths.get(previewOutputPath).toAbsolutePath().toString();
         if (!absolutePreviewPath.endsWith("/")) {
             absolutePreviewPath += "/";
         }
         registry.addResourceHandler("/api/preview/**", "/preview/**")
                 .addResourceLocations("file:" + absolutePreviewPath);
+
+        // 映射预览网站的静态资源到 /preview-static/** URL路径（备用）
+        registry.addResourceHandler("/preview-static/**")
+                .addResourceLocations("file:" + absolutePreviewPath);
+
+        // 映射模板静态资源到 /static/** URL路径
+        String absoluteTemplatePath = Paths.get(templatesPath).toAbsolutePath().toString();
+        if (!absoluteTemplatePath.endsWith("/")) {
+            absoluteTemplatePath += "/";
+        }
+        registry.addResourceHandler("/static/**")
+                .addResourceLocations("file:" + absoluteTemplatePath + "static/");
     }
 
     @Bean
@@ -36,6 +51,12 @@ public class WebConfig implements WebMvcConfigurer {
         // 允许的来源
         config.addAllowedOrigin("http://localhost:5173");
         config.addAllowedOrigin("http://127.0.0.1:5173");
+        // 服务器部署地址
+        config.addAllowedOrigin("http://124.223.45.101");
+        config.addAllowedOrigin("http://124.223.45.101:8088");
+        config.addAllowedOrigin("http://124.223.45.101:80");
+        // 允许所有来源用于测试（生产环境应限制）
+        config.addAllowedOriginPattern("*");
 
         // 允许的HTTP方法
         config.addAllowedMethod("OPTIONS");

@@ -43,7 +43,7 @@ website:
 
   # 服务器部署配置
   deployment:
-    enabled: false
+    enabled: true
     server:
       host: 124.223.45.101
       port: 22

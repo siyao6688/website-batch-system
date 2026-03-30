@@ -240,6 +240,9 @@ public class CompanyService {
         // 部署网站到服务器
         deploymentService.deployWebsite(company.getDomain(), websitePath);
 
+        // 生成本地Nginx配置文件（供手动部署）
+        deploymentService.generateLocalNginxConfig(company.getDomain(), websitePath);
+
         company.setIsPublished(true);
         company.setPublishDate(LocalDateTime.now());
         company.setIsActive(true);

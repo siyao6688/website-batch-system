@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 @Slf4j
@@ -185,7 +187,12 @@ public class ServerDeploymentService {
             enabledConfigPath, finalConfigPath, enabledConfigPath);
         executeCommand(session, checkLinkCmd);
 
-        // 4. 删除临时文件
+        // 4. 测试Nginx配置
+        String testConfigCmd = "sudo nginx -t";
+        executeCommand(session, testConfigCmd);
+        log.info("Nginx配置语法测试通过");
+
+        // 5. 删除临时文件
         String deleteTempCmd = String.format("rm -f %s", tempConfigPath);
         executeCommand(session, deleteTempCmd);
 
@@ -199,19 +206,30 @@ public class ServerDeploymentService {
         return String.format(
             "server {\n" +
             "    listen 80;\n" +
-            "    server_name %s;\n" +
+            "    server_name %s www.%s;\n" +
             "\n" +
             "    root %s/%s;\n" +
             "    index index.html index.htm;\n" +
+            "\n" +
+            "    # 静态资源缓存\n" +
+            "    location ~* \\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {\n" +
+            "        expires 1y;\n" +
+            "        add_header Cache-Control \"public, immutable\";\n" +
+            "        try_files $uri $uri/ =404;\n" +
+            "    }\n" +
             "\n" +
             "    location / {\n" +
             "        try_files $uri $uri/ /index.html;\n" +
             "    }\n" +
             "\n" +
+            "    # 错误页面\n" +
+            "    error_page 404 /index.html;\n" +
+            "    error_page 500 502 503 504 /index.html;\n" +
+            "\n" +
             "    access_log /var/log/nginx/%s-access.log;\n" +
             "    error_log /var/log/nginx/%s-error.log;\n" +
             "}\n",
-            domain, remoteWebRoot, domain, domain, domain
+            domain, domain, remoteWebRoot, domain, domain, domain
         );
     }
 
@@ -320,6 +338,25 @@ public class ServerDeploymentService {
             if (session != null && session.isConnected()) {
                 session.disconnect();
             }
+        }
+    }
+
+    /**
+     * 生成本地Nginx配置文件
+     */
+    public void generateLocalNginxConfig(String domain, Path localWebsitePath) {
+        try {
+            String configContent = buildNginxConfig(domain);
+            // 保存到本地文件
+            Path configFile = localWebsitePath.resolveSibling(domain + ".nginx.conf");
+            Files.write(configFile, configContent.getBytes(StandardCharsets.UTF_8));
+            log.info("Nginx配置文件已生成: {}", configFile.toAbsolutePath());
+            log.info("请将配置文件复制到 /etc/nginx/sites-available/ 并启用配置");
+            log.info("sudo cp {} /etc/nginx/sites-available/", configFile);
+            log.info("sudo ln -sf /etc/nginx/sites-available/{}.conf /etc/nginx/sites-enabled/", domain);
+            log.info("sudo nginx -t && sudo systemctl reload nginx");
+        } catch (Exception e) {
+            log.error("生成Nginx配置文件失败", e);
         }
     }
 }
