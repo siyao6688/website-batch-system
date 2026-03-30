@@ -30,6 +30,10 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addResourceHandler("/api/preview/**", "/preview/**")
                 .addResourceLocations("file:" + absolutePreviewPath);
 
+        // 映射预览网站的静态资源 - 支持相对路径访问
+        registry.addResourceHandler("/api/preview/*/static/**")
+                .addResourceLocations("file:" + absolutePreviewPath);
+
         // 映射预览网站的静态资源到 /preview-static/** URL路径（备用）
         registry.addResourceHandler("/preview-static/**")
                 .addResourceLocations("file:" + absolutePreviewPath);
