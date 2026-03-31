@@ -154,6 +154,7 @@ public class ServerDeploymentService {
         }
 
         File[] files = localDir.listFiles();
+        log.info("上传目录: {}, 文件数: {}", localDir.getAbsolutePath(), files != null ? files.length : 0);
         if (files == null) {
             return;
         }
@@ -167,9 +168,10 @@ public class ServerDeploymentService {
                 uploadDirectory(sftpChannel, file.toPath(), remoteFilePath);
             } else {
                 // 上传文件
+                log.info("上传文件: {}, 大小: {} bytes", file.getAbsolutePath(), file.length());
                 try (InputStream inputStream = new FileInputStream(file)) {
                     sftpChannel.put(inputStream, remoteFilePath);
-                    log.debug("上传文件: {} -> {}", file.getPath(), remoteFilePath);
+                    log.info("上传完成: {} -> {}", file.getPath(), remoteFilePath);
                 }
             }
         }
