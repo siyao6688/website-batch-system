@@ -10,11 +10,15 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,6 +36,7 @@ public class WebsiteGeneratorService {
     private final WebsiteContentRepository contentRepository;
     private final WebsiteTemplateRepository templateRepository;
     private final ServerDeploymentService deploymentService;
+    private final ResourceLoader resourceLoader;
 
     @Value("${website.output-path:/var/www/html}")
     private String outputPath;
@@ -194,13 +199,22 @@ public class WebsiteGeneratorService {
     }
 
     private String loadTemplate(String templateCode) throws IOException {
-        Path templatePath = Paths.get(templatesPath, templateCode + ".html");
+        // 从classpath加载模板（支持jar包运行）
+        String resourcePath = "classpath:templates/" + templateCode + ".html";
+        Resource resource = resourceLoader.getResource(resourcePath);
 
-        if (!Files.exists(templatePath)) {
-            throw new IOException("Template not found: " + templatePath);
+        if (!resource.exists()) {
+            // 尝试从文件系统加载（开发模式）
+            Path templatePath = Paths.get(templatesPath, templateCode + ".html");
+            if (Files.exists(templatePath)) {
+                return Files.readString(templatePath, StandardCharsets.UTF_8);
+            }
+            throw new IOException("Template not found: " + templateCode);
         }
 
-        return Files.readString(templatePath, StandardCharsets.UTF_8);
+        try (InputStream is = resource.getInputStream()) {
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 
     private String renderTemplate(String templateContent, Map<String, Object> data) {
@@ -235,10 +249,32 @@ public class WebsiteGeneratorService {
 
     private void copyStaticResources(String domain, String basePath) throws IOException {
         // 复制静态资源到对应的域名目录
-        Path staticResourcesPath = Paths.get(templatesPath, "static");
-        if (Files.exists(staticResourcesPath)) {
-            Path targetPath = Paths.get(basePath, domain, "static");
-            copyDirectory(staticResourcesPath, targetPath);
+        Path targetPath = Paths.get(basePath, domain, "static");
+
+        // 从classpath复制（支持jar包运行）
+        copyClasspathResource("templates/static/css/classic-style.css", targetPath.resolve("css/classic-style.css"));
+        copyClasspathResource("templates/static/css/modern-style.css", targetPath.resolve("css/modern-style.css"));
+        copyClasspathResource("templates/static/css/standard-style.css", targetPath.resolve("css/standard-style.css"));
+        copyClasspathResource("templates/static/js/main.js", targetPath.resolve("js/main.js"));
+    }
+
+    private void copyClasspathResource(String resourcePath, Path targetPath) throws IOException {
+        Resource resource = resourceLoader.getResource("classpath:" + resourcePath);
+
+        if (resource.exists()) {
+            Files.createDirectories(targetPath.getParent());
+            try (InputStream is = resource.getInputStream()) {
+                Files.copy(is, targetPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } else {
+            // 尝试从文件系统加载（开发模式）
+            Path sourcePath = Paths.get(templatesPath, resourcePath.replace("templates/static/", "static/"));
+            if (Files.exists(sourcePath)) {
+                Files.createDirectories(targetPath.getParent());
+                Files.copy(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING);
+            } else {
+                log.warn("Static resource not found: {}", resourcePath);
+            }
         }
     }
 
@@ -246,21 +282,4 @@ public class WebsiteGeneratorService {
         copyStaticResources(domain, outputPath);
     }
 
-    private void copyDirectory(Path source, Path target) throws IOException {
-        Files.createDirectories(target);
-
-        Files.walk(source)
-                .filter(path -> !Files.isDirectory(path))
-                .forEach(sourcePath -> {
-                    Path relativePath = source.relativize(sourcePath);
-                    Path targetPath = target.resolve(relativePath);
-
-                    try {
-                        Files.createDirectories(targetPath.getParent());
-                        Files.copy(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING);
-                    } catch (IOException e) {
-                        log.error("Failed to copy file: {}", sourcePath, e);
-                    }
-                });
-    }
 }
