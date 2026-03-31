@@ -171,7 +171,16 @@ public class ServerDeploymentService {
                 log.info("上传文件: {}, 大小: {} bytes", file.getAbsolutePath(), file.length());
                 try (InputStream inputStream = new FileInputStream(file)) {
                     sftpChannel.put(inputStream, remoteFilePath);
-                    log.info("上传完成: {} -> {}", file.getPath(), remoteFilePath);
+                    // 验证上传结果
+                    try {
+                        long remoteSize = sftpChannel.stat(remoteFilePath).getSize();
+                        log.info("上传完成: {} -> {}, 远程大小: {} bytes", file.getPath(), remoteFilePath, remoteSize);
+                        if (remoteSize != file.length()) {
+                            log.warn("上传大小不一致! 本地: {} bytes, 远程: {} bytes", file.length(), remoteSize);
+                        }
+                    } catch (Exception e) {
+                        log.warn("无法验证远程文件大小: {}", e.getMessage());
+                    }
                 }
             }
         }
