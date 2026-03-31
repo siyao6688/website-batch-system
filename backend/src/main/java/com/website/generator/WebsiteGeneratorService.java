@@ -77,10 +77,13 @@ public class WebsiteGeneratorService {
             }
 
             // 2. 加载模板
+            log.info("Loading template: {}", template.getTemplateCode());
             String templateContent = loadTemplate(template.getTemplateCode());
+            log.info("Template content length: {}", templateContent.length());
 
             // 3. 渲染模板
             String renderedHtml = renderTemplate(templateContent, data);
+            log.info("Rendered HTML length: {}", renderedHtml.length());
 
             // 4. 保存HTML文件 - 使用正确的域名
             Path websitePath = saveWebsiteFile(websiteDomain, renderedHtml, basePath);
@@ -259,19 +262,26 @@ public class WebsiteGeneratorService {
     }
 
     private void copyClasspathResource(String resourcePath, Path targetPath) throws IOException {
+        log.info("Copying classpath resource: {} to {}", resourcePath, targetPath);
         Resource resource = resourceLoader.getResource("classpath:" + resourcePath);
 
+        log.info("Resource exists: {}", resource.exists());
         if (resource.exists()) {
             Files.createDirectories(targetPath.getParent());
             try (InputStream is = resource.getInputStream()) {
+                long size = is.available();
+                log.info("Resource stream size: {}", size);
                 Files.copy(is, targetPath, StandardCopyOption.REPLACE_EXISTING);
+                log.info("Copied successfully: {}", targetPath);
             }
         } else {
             // 尝试从文件系统加载（开发模式）
             Path sourcePath = Paths.get(templatesPath, resourcePath.replace("templates/static/", "static/"));
+            log.info("Trying file system path: {}", sourcePath);
             if (Files.exists(sourcePath)) {
                 Files.createDirectories(targetPath.getParent());
                 Files.copy(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING);
+                log.info("Copied from file system: {}", targetPath);
             } else {
                 log.warn("Static resource not found: {}", resourcePath);
             }

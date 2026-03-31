@@ -73,7 +73,12 @@
       "Bash(npm run:*)",
       "Bash(scp -i ~/.ssh/id_rsa -r d:/Code/website-batch-system/frontend/dist/* root@124.223.45.101:/var/www/frontend/)",
       "Bash(cat logs/*.log)",
-      "Bash(ls -la backend/src/main/resources/*.yml)"
+      "Bash(ls -la backend/src/main/resources/*.yml)",
+      "Bash(ssh root@124.223.45.101 \"ls -la /var/www/html/aruio.cn/ && head -50 /var/www/html/aruio.cn/index.html\")",
+      "Bash(ssh root@124.223.45.101 \"cat /var/www/html/aruio.cn/index.html\")",
+      "Bash(ssh root@124.223.45.101 \"grep -E ''Static resource not found|Template not found|Failed to|DEBUG|WARN.*resource'' /opt/website-batch-system/backend.log | tail -20\")",
+      "Bash(ssh root@124.223.45.101 \"curl -s http://localhost:8080/api/actuator/configprops 2>/dev/null | grep -E ''templates-path|output-path'' || echo ''actuator not available''\")",
+      "Bash(ssh root@124.223.45.101 \"echo ''test content'' > /var/www/html/test-write.txt && cat /var/www/html/test-write.txt && rm /var/www/html/test-write.txt && df -h /var/www/html\")"
     ]
   }
 }
