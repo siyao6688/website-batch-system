@@ -44,6 +44,12 @@ public class ServerDeploymentService {
     @Value("${website.deployment.enabled:true}")
     private boolean deploymentEnabled;
 
+    @Value("${website.deployment.retry.max-attempts:3}")
+    private int retryMaxAttempts;
+
+    @Value("${website.deployment.retry.delay-ms:2000}")
+    private int retryDelayMs;
+
     /**
      * 部署网站到远程服务器
      */
@@ -190,8 +196,8 @@ public class ServerDeploymentService {
             enabledConfigPath, finalConfigPath, enabledConfigPath);
         executeCommand(session, checkLinkCmd);
 
-        // 4. 测试Nginx配置
-        String testConfigCmd = "sudo nginx -t";
+        // 4. 测试Nginx配置（带ulimit设置解决"Too many open files"问题）
+        String testConfigCmd = "sudo bash -c 'ulimit -n 65535 && nginx -t'";
         executeCommand(session, testConfigCmd);
         log.info("Nginx配置语法测试通过");
 
@@ -257,53 +263,100 @@ public class ServerDeploymentService {
     }
 
     /**
-     * 执行远程命令
+     * 执行远程命令（带重试机制）
      */
     private String executeCommand(Session session, String command) throws Exception {
-        ChannelExec channel = null;
-        try {
-            channel = (ChannelExec) session.openChannel("exec");
-            channel.setCommand(command);
+        return executeCommand(session, command, false);
+    }
 
-            try (InputStream in = channel.getInputStream();
-                 InputStream err = channel.getErrStream()) {
+    /**
+     * 执行远程命令（带重试机制）
+     * @param session SSH会话
+     * @param command 命令
+     * @param skipRetry 是否跳过重试（用于重试调用时避免无限循环）
+     */
+    private String executeCommand(Session session, String command, boolean skipRetry) throws Exception {
+        Exception lastException = null;
 
-                channel.connect(30000);
+        for (int attempt = 1; attempt <= retryMaxAttempts; attempt++) {
+            ChannelExec channel = null;
+            try {
+                channel = (ChannelExec) session.openChannel("exec");
+                channel.setCommand(command);
 
-                // 读取输出
-                StringBuilder output = new StringBuilder();
-                byte[] buffer = new byte[1024];
-                while (true) {
-                    while (in.available() > 0) {
-                        int bytesRead = in.read(buffer, 0, buffer.length);
-                        if (bytesRead < 0) break;
-                        output.append(new String(buffer, 0, bytesRead));
+                try (InputStream in = channel.getInputStream();
+                     InputStream err = channel.getErrStream()) {
+
+                    channel.connect(30000);
+
+                    // 读取输出
+                    StringBuilder output = new StringBuilder();
+                    byte[] buffer = new byte[1024];
+                    while (true) {
+                        while (in.available() > 0) {
+                            int bytesRead = in.read(buffer, 0, buffer.length);
+                            if (bytesRead < 0) break;
+                            output.append(new String(buffer, 0, bytesRead));
+                        }
+                        while (err.available() > 0) {
+                            int bytesRead = err.read(buffer, 0, buffer.length);
+                            if (bytesRead < 0) break;
+                            output.append(new String(buffer, 0, bytesRead));
+                        }
+                        if (channel.isClosed()) {
+                            if (in.available() > 0) continue;
+                            if (err.available() > 0) continue;
+                            break;
+                        }
+                        Thread.sleep(100);
                     }
-                    while (err.available() > 0) {
-                        int bytesRead = err.read(buffer, 0, buffer.length);
-                        if (bytesRead < 0) break;
-                        output.append(new String(buffer, 0, bytesRead));
+
+                    int exitStatus = channel.getExitStatus();
+                    if (exitStatus != 0) {
+                        String outputStr = output.toString();
+                        // 检查是否为可重试的错误（如"Too many open files"）
+                        if (!skipRetry && shouldRetry(outputStr) && attempt < retryMaxAttempts) {
+                            log.warn("命令执行失败（尝试 {}/{}），将在 {}ms 后重试: {}",
+                                attempt, retryMaxAttempts, retryDelayMs, outputStr);
+                            Thread.sleep(retryDelayMs);
+                            continue;
+                        }
+                        throw new Exception("命令执行失败: " + command + "\n" + outputStr);
                     }
-                    if (channel.isClosed()) {
-                        if (in.available() > 0) continue;
-                        if (err.available() > 0) continue;
-                        break;
-                    }
-                    Thread.sleep(100);
+
+                    return output.toString();
                 }
-
-                int exitStatus = channel.getExitStatus();
-                if (exitStatus != 0) {
-                    throw new Exception("命令执行失败: " + command + "\n" + output);
+            } catch (Exception e) {
+                lastException = e;
+                // 检查是否为可重试的错误
+                if (!skipRetry && shouldRetry(e.getMessage()) && attempt < retryMaxAttempts) {
+                    log.warn("命令执行异常（尝试 {}/{}），将在 {}ms 后重试: {}",
+                        attempt, retryMaxAttempts, retryDelayMs, e.getMessage());
+                    Thread.sleep(retryDelayMs);
+                    continue;
                 }
-
-                return output.toString();
-            }
-        } finally {
-            if (channel != null && channel.isConnected()) {
-                channel.disconnect();
+                throw e;
+            } finally {
+                if (channel != null && channel.isConnected()) {
+                    channel.disconnect();
+                }
             }
         }
+
+        throw lastException;
+    }
+
+    /**
+     * 判断错误是否应该重试
+     */
+    private boolean shouldRetry(String errorMessage) {
+        if (errorMessage == null) return false;
+        String lowerMessage = errorMessage.toLowerCase();
+        return lowerMessage.contains("too many open files") ||
+               lowerMessage.contains("resource temporarily unavailable") ||
+               lowerMessage.contains("connection refused") ||
+               lowerMessage.contains("connection reset") ||
+               lowerMessage.contains("timeout");
     }
 
     /**
