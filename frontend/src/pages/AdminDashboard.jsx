@@ -40,6 +40,13 @@ const AdminDashboard = () => {
     hasWebsite: 0
   });
 
+  // 分页状态
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 20,
+    total: 0
+  });
+
   // 模板列表
   const [templates, setTemplates] = useState([]);
   const [previewTemplate, setPreviewTemplate] = useState(null);
@@ -308,7 +315,7 @@ const AdminDashboard = () => {
       if (onSuccess) {
         onSuccess(response.data, file, response);
       }
-      loadData(); // 刷新主数据
+      loadData(1, pagination.pageSize); // 刷新主数据（回到第一页）
     } catch (error) {
       console.error('导入错误:', error);
       const errorDetail = error.response?.data?.message || error.response?.data || error.message || '网络错误';
@@ -341,19 +348,36 @@ const AdminDashboard = () => {
 
   // 加载数据
   useEffect(() => {
-    loadData();
+    loadData(1, 20);
     loadTemplates();
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (page = 1, pageSize = 20) => {
     setLoading(true);
     try {
       const [companiesResponse, templatesResponse] = await Promise.all([
-        companyApi.getCompanies(),
+        companyApi.getCompanies({
+          page: page - 1,
+          size: pageSize,
+          sortBy: 'id',
+          sortDir: 'desc'
+        }),
         templateApi.getAllTemplates()
       ]);
 
-      if (Array.isArray(companiesResponse.data)) {
+      // 处理分页响应
+      if (companiesResponse.data.content) {
+        // 分页响应
+        setCompanies(companiesResponse.data.content);
+        setFilteredCompanies(companiesResponse.data.content);
+        setPagination({
+          current: companiesResponse.data.currentPage + 1,
+          pageSize: companiesResponse.data.pageSize,
+          total: companiesResponse.data.totalElements
+        });
+        updateStatsFromTotal(companiesResponse.data.totalElements, companiesResponse.data.content);
+      } else if (Array.isArray(companiesResponse.data)) {
+        // 兼容旧的非分页响应
         setCompanies(companiesResponse.data);
         setFilteredCompanies(companiesResponse.data);
         updateStats(companiesResponse.data);
@@ -368,6 +392,15 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const updateStatsFromTotal = (total, data) => {
+    setStats({
+      total: total,
+      published: data.filter(c => c.isPublished).length,
+      active: data.filter(c => c.isActive).length,
+      hasWebsite: data.filter(c => c.hasWebsite).length
+    });
   };
 
   const loadTemplates = async () => {
@@ -395,10 +428,10 @@ const AdminDashboard = () => {
     setSelectedMenuKey(key);
     switch (key) {
       case 'overview':
-        loadData();
+        loadData(1, pagination.pageSize);
         break;
       case 'companies':
-        loadData();
+        loadData(1, pagination.pageSize);
         break;
       case 'templates':
         loadTemplates();
@@ -481,7 +514,7 @@ const AdminDashboard = () => {
     try {
       await companyApi.publishCompany(id);
       message.success('发布成功');
-      loadData();
+      loadData(pagination.current, pagination.pageSize);
     } catch (error) {
       const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
       message.error('发布失败：' + errorMsg);
@@ -493,7 +526,7 @@ const AdminDashboard = () => {
     try {
       await companyApi.deleteCompany(id);
       message.success('删除成功');
-      loadData();
+      loadData(pagination.current, pagination.pageSize);
     } catch (error) {
       const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
       message.error('删除失败：' + errorMsg);
@@ -545,6 +578,10 @@ const AdminDashboard = () => {
       message.warning('请先选择要发布的公司');
       return;
     }
+    if (selectedRowKeys.length > 100) {
+      message.warning('一次最多只能发布100条数据，请减少选择');
+      return;
+    }
     setBatchLoading(true);
     try {
       const response = await companyApi.batchPublish(selectedRowKeys);
@@ -567,7 +604,7 @@ const AdminDashboard = () => {
         message.success(result.message);
       }
       setSelectedRowKeys([]);
-      loadData();
+      loadData(pagination.current, pagination.pageSize);
     } catch (error) {
       const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
       message.error('批量发布失败：' + errorMsg);
@@ -580,6 +617,10 @@ const AdminDashboard = () => {
   const handleBatchGenerate = async () => {
     if (selectedRowKeys.length === 0) {
       message.warning('请先选择要生成网站的公司');
+      return;
+    }
+    if (selectedRowKeys.length > 100) {
+      message.warning('一次最多只能生成100条数据，请减少选择');
       return;
     }
     setBatchLoading(true);
@@ -604,7 +645,7 @@ const AdminDashboard = () => {
         message.success(result.message);
       }
       setSelectedRowKeys([]);
-      loadData();
+      loadData(pagination.current, pagination.pageSize);
     } catch (error) {
       const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
       message.error('批量生成失败：' + errorMsg);
@@ -779,7 +820,7 @@ const AdminDashboard = () => {
             <div className="card-header">
               <Space>
                 <span className="card-title">公司列表</span>
-                <Badge count={filteredCompanies.length} />
+                <Badge count={pagination.total} />
               </Space>
               <Space>
                 {selectedRowKeys.length > 0 && (
@@ -827,10 +868,18 @@ const AdminDashboard = () => {
               rowSelection={rowSelection}
               scroll={{ x: 1500 }}
               pagination={{
-                pageSize: 20,
+                current: pagination.current,
+                pageSize: pagination.pageSize,
+                total: pagination.total,
                 showSizeChanger: true,
                 showTotal: (total) => `共 ${total} 条`,
-                pageSizeOptions: ['10', '20', '50', '100']
+                pageSizeOptions: ['10', '20', '50', '100'],
+                onChange: (page, pageSize) => {
+                  loadData(page, pageSize);
+                },
+                onShowSizeChange: (current, size) => {
+                  loadData(1, size);
+                }
               }}
             />
           </Card>
@@ -905,7 +954,7 @@ const AdminDashboard = () => {
                 message.success('创建成功');
               }
               setIsModalVisible(false);
-              loadData();
+              loadData(1, pagination.pageSize);
             } catch (error) {
               const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
               message.error('操作失败：' + errorMsg);
@@ -1126,7 +1175,7 @@ const AdminDashboard = () => {
                 }
               }
               setIsDraftVisible(false);
-              loadData();
+              loadData(pagination.current, pagination.pageSize);
             } catch (error) {
               const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
               message.error('生成失败：' + errorMsg);

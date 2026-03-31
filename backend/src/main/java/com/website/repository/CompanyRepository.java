@@ -1,6 +1,8 @@
 package com.website.repository;
 
 import com.website.entity.Company;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -23,7 +25,9 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
     // 软删除相关查询
     Optional<Company> findByIdAndIsDeletedFalse(Long id);
     List<Company> findAllByIsDeletedFalse();
+    Page<Company> findAllByIsDeletedFalse(Pageable pageable);
     List<Company> findByIsActiveAndIsDeletedFalse(Boolean isActive);
+    Page<Company> findByIsActiveAndIsDeletedFalse(Boolean isActive, Pageable pageable);
     List<Company> findByIsPublishedAndIsDeletedFalse(Boolean isPublished);
     Optional<Company> findByDomainAndIsDeletedFalse(String domain);
     Optional<Company> findByIdAndIsActiveAndIsDeletedFalse(Long id, Boolean isActive);

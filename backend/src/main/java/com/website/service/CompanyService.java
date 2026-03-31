@@ -12,6 +12,8 @@ import com.website.repository.WebsiteTemplateRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,6 +77,13 @@ public class CompanyService {
             return companyRepository.findByIsActiveAndIsDeletedFalse(isActive);
         }
         return companyRepository.findAllByIsDeletedFalse();
+    }
+
+    public Page<Company> getCompaniesPage(Boolean isActive, Pageable pageable) {
+        if (isActive != null) {
+            return companyRepository.findByIsActiveAndIsDeletedFalse(isActive, pageable);
+        }
+        return companyRepository.findAllByIsDeletedFalse(pageable);
     }
 
     public Company getCompanyById(Long id) {
@@ -240,19 +249,9 @@ public class CompanyService {
             log.info("预览网站使用根据公司名称和域名选择的模板: {} {} -> {}", company.getCompanyName(), company.getDomain(), template.getTemplateCode());
         }
 
-        // 生成网站（使用预览域名，避免与正式网站冲突）
-        String previewDomain = company.getDomain() + "-preview";
-        Company previewCompany = new Company();
-        previewCompany.setId(company.getId());
-        previewCompany.setCompanyName(company.getCompanyName());
-        previewCompany.setDomain(previewDomain);
-        previewCompany.setEmail(company.getEmail());
-        previewCompany.setIcpNumber(company.getIcpNumber());
-        previewCompany.setHasWebsite(company.getHasWebsite());
-        previewCompany.setTemplateId(templateIdToUse);
-
         // 生成网站并返回路径（预览模式）
-        return generatorService.generateWebsite(previewCompany, template, true);
+        // generateWebsite 方法会自动添加 -preview 后缀
+        return generatorService.generateWebsite(company, template, true);
     }
 
     @Transactional

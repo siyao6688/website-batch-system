@@ -9,11 +9,17 @@ import com.website.service.CompanyService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -26,10 +32,33 @@ public class CompanyController {
 
     @GetMapping
     public ResponseEntity<?> getAllCompanies(
-            @RequestParam(required = false) Boolean isActive) {
+            @RequestParam(required = false) Boolean isActive,
+            @RequestParam(required = false, defaultValue = "0") int page,
+            @RequestParam(required = false, defaultValue = "20") int size,
+            @RequestParam(required = false, defaultValue = "id") String sortBy,
+            @RequestParam(required = false, defaultValue = "desc") String sortDir) {
         try {
-            List<Company> companies = companyService.getAllCompanies(isActive);
-            return ResponseEntity.ok(companies);
+            // 如果没有分页参数，返回所有数据（兼容旧接口）
+            if (page == 0 && size == 20 && !"id".equals(sortBy)) {
+                List<Company> companies = companyService.getAllCompanies(isActive);
+                return ResponseEntity.ok(companies);
+            }
+
+            // 分页查询
+            Sort sort = sortDir.equalsIgnoreCase("asc") ?
+                Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+            Pageable pageable = PageRequest.of(page, size, sort);
+
+            Page<Company> companyPage = companyService.getCompaniesPage(isActive, pageable);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("content", companyPage.getContent());
+            response.put("totalElements", companyPage.getTotalElements());
+            response.put("totalPages", companyPage.getTotalPages());
+            response.put("currentPage", companyPage.getNumber());
+            response.put("pageSize", companyPage.getSize());
+
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Failed to get companies", e);
             return ResponseEntity.badRequest().body("Failed to get companies: " + e.getMessage());
@@ -114,6 +143,12 @@ public class CompanyController {
     @PostMapping("/batch/publish")
     public ResponseEntity<?> batchPublish(@RequestBody BatchOperationRequest request) {
         try {
+            if (request.getIds() == null || request.getIds().isEmpty()) {
+                return ResponseEntity.badRequest().body("请选择要发布的公司");
+            }
+            if (request.getIds().size() > 100) {
+                return ResponseEntity.badRequest().body("一次最多只能发布100条数据，当前选择了 " + request.getIds().size() + " 条");
+            }
             BatchOperationResult result = companyService.batchPublish(request.getIds());
             return ResponseEntity.ok(result);
         } catch (Exception e) {
@@ -125,6 +160,12 @@ public class CompanyController {
     @PostMapping("/batch/generate")
     public ResponseEntity<?> batchGenerate(@RequestBody BatchOperationRequest request) {
         try {
+            if (request.getIds() == null || request.getIds().isEmpty()) {
+                return ResponseEntity.badRequest().body("请选择要生成的公司");
+            }
+            if (request.getIds().size() > 100) {
+                return ResponseEntity.badRequest().body("一次最多只能生成100条数据，当前选择了 " + request.getIds().size() + " 条");
+            }
             BatchOperationResult result = companyService.batchGenerate(request.getIds());
             return ResponseEntity.ok(result);
         } catch (Exception e) {

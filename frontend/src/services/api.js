@@ -55,11 +55,15 @@ export const companyApi = {
     // 发布公司
     publishCompany: (id) => api.post(`/companies/${id}/publish`),
 
-    // 批量发布
-    batchPublish: (ids) => api.post('/companies/batch/publish', { ids }),
+    // 批量发布（增加超时时间，因为涉及批量生成和部署）
+    batchPublish: (ids) => api.post('/companies/batch/publish', { ids }, {
+        timeout: 300000 // 5分钟超时
+    }),
 
-    // 批量生成网站
-    batchGenerate: (ids) => api.post('/companies/batch/generate', { ids }),
+    // 批量生成网站（增加超时时间）
+    batchGenerate: (ids) => api.post('/companies/batch/generate', { ids }, {
+        timeout: 300000 // 5分钟超时
+    }),
 
     // 切换状态
     toggleCompanyStatus: (id) => api.post(`/companies/${id}/toggle-status`),
