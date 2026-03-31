@@ -62,10 +62,9 @@ const AdminDashboard = () => {
   const columns = [
     {
       title: '序号',
-      dataIndex: 'serialNumber',
       key: 'serialNumber',
       width: 80,
-      render: (text) => text || '-'
+      render: (_, __, index) => index + 1,
     },
     {
       title: '公司名称',

@@ -17,6 +17,37 @@ fi
 echo "🔧 开始快速部署到服务器：$SERVER_IP"
 echo "========================================"
 
+# 确保Nginx配置目录存在
+echo "0️⃣ 确保Nginx配置正确..."
+ssh "$SERVER_USER@$SERVER_IP" "mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled"
+
+# 检查并创建/更新Nginx配置
+ssh "$SERVER_USER@$SERVER_IP" "cat > /etc/nginx/sites-available/website-batch-system <<'NGINX_EOF'
+server {
+    listen 80;
+    server_name _;
+
+    location /api/ {
+        proxy_pass http://localhost:8080/api/;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location / {
+        root /var/www/html;
+        index index.html;
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    access_log /var/log/nginx/website-batch-system-access.log;
+    error_log /var/log/nginx/website-batch-system-error.log;
+}
+NGINX_EOF"
+
+ssh "$SERVER_USER@$SERVER_IP" "ln -sf /etc/nginx/sites-available/website-batch-system /etc/nginx/sites-enabled/"
+
 # 1. 构建后端
 echo "1️⃣ 构建后端JAR..."
 cd backend
@@ -33,6 +64,18 @@ npm run build --silent
 echo "  前端构建完成 (dist/)"
 cd ..
 
+# 2.5 打包模板静态资源和预览网站目录
+echo "2.5️⃣ 打包模板和预览资源..."
+# 打包模板静态资源
+tar -czf /tmp/templates-static.tar.gz -C backend/src/main/resources/templates static
+# 打包预览网站目录（如果存在）
+if [ -d "backend/preview-websites" ]; then
+    tar -czf /tmp/preview-websites.tar.gz -C backend preview-websites
+    echo "  预览网站目录已打包"
+else
+    echo "  预览网站目录不存在，跳过"
+fi
+
 # 3. 传输文件到服务器
 echo "3️⃣ 传输文件到服务器..."
 echo "  传输后端JAR..."
@@ -42,11 +85,20 @@ echo "  传输前端文件..."
 tar -czf /tmp/frontend-dist.tar.gz -C frontend/dist .
 scp /tmp/frontend-dist.tar.gz "$SERVER_USER@$SERVER_IP:/tmp/"
 
+echo "  传输模板静态资源..."
+scp /tmp/templates-static.tar.gz "$SERVER_USER@$SERVER_IP:/tmp/"
+
+echo "  传输预览网站目录..."
+if [ -f /tmp/preview-websites.tar.gz ]; then
+    scp /tmp/preview-websites.tar.gz "$SERVER_USER@$SERVER_IP:/tmp/"
+fi
+
 # 4. 在服务器上部署
 echo "4️⃣ 在服务器上部署..."
 ssh "$SERVER_USER@$SERVER_IP" "
 echo '停止服务...'
-systemctl stop website-batch-system || true
+#systemctl stop website-batch-system || true
+pkill -f 'website-batch-system-1.0.0.jar'
 
 echo '备份旧版本...'
 timestamp=\$(date +%Y%m%d_%H%M%S)
@@ -63,18 +115,40 @@ rm -rf /var/www/html/*
 tar -xzf /tmp/frontend-dist.tar.gz -C /var/www/html/
 chown -R www-data:www-data /var/www/html 2>/dev/null || chown -R nginx:nginx /var/www/html 2>/dev/null || true
 
+# 部署模板静态资源到后端工作目录
+mkdir -p /opt/website-batch-system/backend/templates
+tar -xzf /tmp/templates-static.tar.gz -C /opt/website-batch-system/backend/templates/
+echo '模板静态资源已部署'
+
+# 部署预览网站目录
+if [ -f /tmp/preview-websites.tar.gz ]; then
+    mkdir -p /opt/website-batch-system/backend/preview-websites
+    tar -xzf /tmp/preview-websites.tar.gz -C /opt/website-batch-system/backend/
+    echo '预览网站目录已部署'
+fi
+
 echo '清理临时文件...'
-rm -f /tmp/website-batch-system-new.jar /tmp/frontend-dist.tar.gz
+rm -f /tmp/website-batch-system-new.jar /tmp/frontend-dist.tar.gz /tmp/templates-static.tar.gz /tmp/preview-websites.tar.gz
 "
 
 # 5. 重启服务
 echo "5️⃣ 重启服务..."
 ssh "$SERVER_USER@$SERVER_IP" "
+echo '测试Nginx配置...'
+nginx -t
+
 echo '启动后端服务...'
-systemctl start website-batch-system
+# systemctl start website-batch-system
+cd /opt/website-batch-system/backend
+nohup java -jar website-batch-system-1.0.0.jar \
+  --website.templates-path=/opt/website-batch-system/backend/templates \
+  --website.preview-output-path=/opt/website-batch-system/backend/preview-websites \
+  > app.log 2>&1 &
+echo '后端服务已启动'
 
 echo '重启Nginx...'
-systemctl restart nginx
+#systemctl reload nginx
+sudo systemctl restart nginx
 "
 
 # 6. 验证部署

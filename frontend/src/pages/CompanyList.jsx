@@ -71,6 +71,12 @@ const CompanyList = ({ embedded = false }) => {
 
     const columns = [
         {
+            title: '序号',
+            key: 'serialNumber',
+            width: 60,
+            render: (_, __, index) => index + 1,
+        },
+        {
             title: '公司名称',
             dataIndex: 'companyName',
             key: 'companyName',

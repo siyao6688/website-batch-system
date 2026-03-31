@@ -106,13 +106,15 @@ export const contentApi = {
 
 // Excel相关API
 export const excelApi = {
-    // 上传Excel
+    // 上传Excel（增加超时时间，因为涉及批量创建和部署）
     uploadExcel: (file) => {
         console.log('uploadExcel called with file:', file);
         const formData = new FormData();
         formData.append('file', file);
         console.log('FormData entries:', Array.from(formData.entries()));
-        return api.post('/excel/upload', formData);
+        return api.post('/excel/upload', formData, {
+            timeout: 120000 // 2分钟超时，适配批量导入
+        });
     },
 
     // 获取导入的公司列表

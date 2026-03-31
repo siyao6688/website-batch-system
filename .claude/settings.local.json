@@ -66,7 +66,8 @@
       "Read(//c/Users/1/.ssh/**)",
       "Bash(chmod 600 ~/.ssh/id_rsa)",
       "Bash(ssh -T -o StrictHostKeyChecking=no git@github.com)",
-      "Bash(clip.exe)"
+      "Bash(clip.exe)",
+      "Bash(dir /b \"d:\\\\Code\\\\website-batch-system\\\\frontend\\\\dist\")"
     ]
   }
 }
