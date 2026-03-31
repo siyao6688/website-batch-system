@@ -5,6 +5,7 @@ import com.website.entity.Company;
 import com.website.entity.WebsiteContent;
 import com.website.entity.WebsiteTemplate;
 import com.website.deployment.ServerDeploymentService;
+import com.website.deployment.ServerDeploymentService.WebsiteStatusResult;
 import com.website.generator.WebsiteGeneratorService;
 import com.website.repository.CompanyRepository;
 import com.website.repository.WebsiteContentRepository;
@@ -84,6 +85,13 @@ public class CompanyService {
             return companyRepository.findByIsActiveAndIsDeletedFalse(isActive, pageable);
         }
         return companyRepository.findAllByIsDeletedFalse(pageable);
+    }
+
+    /**
+     * 带筛选条件的公司查询
+     */
+    public Page<Company> getCompaniesWithFilters(String publishStatus, String websiteStatus, Pageable pageable) {
+        return companyRepository.findByFilters(publishStatus, websiteStatus, pageable);
     }
 
     public Company getCompanyById(Long id) {
@@ -290,6 +298,9 @@ public class CompanyService {
         company.setIsPublished(true);
         company.setPublishDate(LocalDateTime.now());
         company.setIsActive(true);
+        company.setWebsiteStatus("normal");
+        company.setStatusCheckDate(LocalDateTime.now());
+        company.setStatusDescription("网站部署正常");
 
         return companyRepository.save(company);
     }
@@ -420,9 +431,11 @@ public class CompanyService {
 
     /**
      * 批量发布公司网站
+     * @param ids 公司ID列表
+     * @param forceRepublish 是否强制重新发布（覆盖已发布的网站）
      */
     @Transactional
-    public BatchOperationResult batchPublish(List<Long> ids) {
+    public BatchOperationResult batchPublish(List<Long> ids, boolean forceRepublish) {
         List<BatchOperationResult.FailureDetail> failures = new ArrayList<>();
         int successCount = 0;
 
@@ -430,10 +443,10 @@ public class CompanyService {
             try {
                 Company company = getCompanyById(id);
 
-                // 已发布的跳过
-                if (company.getIsPublished()) {
+                // 如果不是强制重新发布，已发布的跳过
+                if (!forceRepublish && company.getIsPublished()) {
                     failures.add(new BatchOperationResult.FailureDetail(
-                        id, company.getCompanyName(), company.getDomain(), "已发布，无需重复发布"));
+                        id, company.getCompanyName(), company.getDomain(), "已发布，如需覆盖请使用重新发布功能"));
                     continue;
                 }
 
@@ -462,6 +475,9 @@ public class CompanyService {
                 company.setIsPublished(true);
                 company.setPublishDate(LocalDateTime.now());
                 company.setIsActive(true);
+                company.setWebsiteStatus("normal");
+                company.setStatusCheckDate(LocalDateTime.now());
+                company.setStatusDescription("网站部署正常");
                 companyRepository.save(company);
                 successCount++;
             } catch (Exception e) {
@@ -482,6 +498,90 @@ public class CompanyService {
                 .message(String.format("批量发布完成：成功 %d，失败 %d", successCount, failures.size()))
                 .failures(failures)
                 .build();
+    }
+
+    /**
+     * 重新发布单个公司网站（覆盖发布）
+     */
+    @Transactional
+    public Company republishCompany(Long id) throws Exception {
+        return publishCompany(id); // 直接调用publishCompany，它会覆盖现有网站
+    }
+
+    /**
+     * 检测单个公司的网站部署状态
+     */
+    @Transactional
+    public Company checkCompanyStatus(Long id) {
+        Company company = getCompanyById(id);
+        if (!company.getIsPublished()) {
+            company.setWebsiteStatus(null);
+            company.setStatusDescription("网站未发布");
+            company.setStatusCheckDate(LocalDateTime.now());
+            return companyRepository.save(company);
+        }
+
+        WebsiteStatusResult result = deploymentService.checkWebsiteStatus(company.getDomain());
+        company.setWebsiteStatus(result.getStatus());
+        company.setStatusDescription(result.getDescription());
+        company.setStatusCheckDate(LocalDateTime.now());
+        return companyRepository.save(company);
+    }
+
+    /**
+     * 批量检测网站部署状态
+     */
+    @Transactional
+    public BatchOperationResult batchCheckStatus(List<Long> ids) {
+        List<BatchOperationResult.FailureDetail> failures = new ArrayList<>();
+        int successCount = 0;
+
+        for (Long id : ids) {
+            try {
+                checkCompanyStatus(id);
+                successCount++;
+            } catch (Exception e) {
+                Company company = companyRepository.findById(id).orElse(null);
+                failures.add(new BatchOperationResult.FailureDetail(
+                    id,
+                    company != null ? company.getCompanyName() : "未知",
+                    company != null ? company.getDomain() : "未知",
+                    e.getMessage()
+                ));
+            }
+        }
+
+        return BatchOperationResult.builder()
+                .totalCount(ids.size())
+                .successCount(successCount)
+                .failCount(failures.size())
+                .message(String.format("批量检测完成：成功 %d，失败 %d", successCount, failures.size()))
+                .failures(failures)
+                .build();
+    }
+
+    /**
+     * 检测所有已发布网站的部署状态
+     * @return 问题网站数量
+     */
+    @Transactional
+    public int checkAllPublishedStatus() {
+        List<Company> publishedCompanies = companyRepository.findByIsPublishedAndIsDeletedFalse(true);
+        int problemCount = 0;
+
+        for (Company company : publishedCompanies) {
+            try {
+                checkCompanyStatus(company.getId());
+                if (!"normal".equals(company.getWebsiteStatus())) {
+                    problemCount++;
+                }
+            } catch (Exception e) {
+                log.error("检测公司 {} 状态失败", company.getId(), e);
+                problemCount++;
+            }
+        }
+
+        return problemCount;
     }
 
     /**

@@ -68,6 +68,18 @@ public class Company {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    // 网站状态：null(未检测), "normal"(正常), "files_missing"(文件缺失), "nginx_missing"(配置缺失), "both_missing"(两者都缺失)
+    @Column(name = "website_status")
+    private String websiteStatus;
+
+    // 网站状态检测时间
+    @Column(name = "status_check_date")
+    private LocalDateTime statusCheckDate;
+
+    // 网站状态描述（问题详情）
+    @Column(name = "status_description")
+    private String statusDescription;
+
     @PreUpdate
     public void preUpdate() {
         this.updatedAt = LocalDateTime.now();

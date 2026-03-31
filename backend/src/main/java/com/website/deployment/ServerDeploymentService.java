@@ -10,6 +10,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+/**
+ * 网站状态检测结果
+ */
 @Slf4j
 @Service
 public class ServerDeploymentService {
@@ -357,6 +360,110 @@ public class ServerDeploymentService {
             log.info("sudo nginx -t && sudo systemctl reload nginx");
         } catch (Exception e) {
             log.error("生成Nginx配置文件失败", e);
+        }
+    }
+
+    /**
+     * 检测网站部署状态
+     * @param domain 域名
+     * @return 状态结果
+     */
+    public WebsiteStatusResult checkWebsiteStatus(String domain) {
+        if (!deploymentEnabled) {
+            return new WebsiteStatusResult("disabled", "部署功能未启用");
+        }
+
+        JSch jsch = new JSch();
+        Session session = null;
+
+        try {
+            jsch.addIdentity(privateKeyPath);
+            session = jsch.getSession(serverUsername, serverHost, serverPort);
+            session.setConfig("StrictHostKeyChecking", "no");
+            session.connect(30000);
+
+            // 检查网站文件
+            boolean filesExist = checkRemoteFiles(session, domain);
+
+            // 检查nginx配置
+            boolean nginxConfigExist = checkNginxConfig(session, domain);
+
+            // 构建状态结果
+            String status;
+            String description;
+            if (filesExist && nginxConfigExist) {
+                status = "normal";
+                description = "网站部署正常";
+            } else if (!filesExist && !nginxConfigExist) {
+                status = "both_missing";
+                description = "网站文件和nginx配置都不存在";
+            } else if (!filesExist) {
+                status = "files_missing";
+                description = "网站文件不存在，nginx配置存在";
+            } else {
+                status = "nginx_missing";
+                description = "网站文件存在，nginx配置不存在";
+            }
+
+            log.info("网站状态检测完成: {} -> {}", domain, status);
+            return new WebsiteStatusResult(status, description);
+
+        } catch (Exception e) {
+            log.error("检测网站状态失败: {}", domain, e);
+            return new WebsiteStatusResult("check_failed", "检测失败: " + e.getMessage());
+        } finally {
+            if (session != null && session.isConnected()) {
+                session.disconnect();
+            }
+        }
+    }
+
+    /**
+     * 检查远程网站文件是否存在
+     */
+    private boolean checkRemoteFiles(Session session, String domain) throws Exception {
+        String remotePath = remoteWebRoot + "/" + domain;
+        String checkCmd = String.format("test -d %s && test -f %s/index.html", remotePath, remotePath);
+        try {
+            executeCommand(session, checkCmd);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 检查nginx配置是否存在
+     */
+    private boolean checkNginxConfig(Session session, String domain) throws Exception {
+        String configPath = nginxSitesEnabled + "/" + domain + ".conf";
+        String checkCmd = String.format("test -L %s || test -f %s", configPath, configPath);
+        try {
+            executeCommand(session, checkCmd);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 网站状态检测结果DTO
+     */
+    public static class WebsiteStatusResult {
+        private final String status;
+        private final String description;
+
+        public WebsiteStatusResult(String status, String description) {
+            this.status = status;
+            this.description = description;
+        }
+
+        public String getStatus() {
+            return status;
+        }
+
+        public String getDescription() {
+            return description;
         }
     }
 }

@@ -39,4 +39,17 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
     // 统计模板使用次数
     @Query("SELECT COUNT(c) FROM Company c WHERE c.templateId = :templateId AND c.isPublished = :isPublished AND c.isDeleted = false")
     int countByTemplateIdAndIsPublished(@Param("templateId") Long templateId, @Param("isPublished") Boolean isPublished);
+
+    // 网站状态筛选查询
+    @Query("SELECT c FROM Company c WHERE c.isDeleted = false AND " +
+           "(:publishStatus = 'all' OR " +
+           "  (:publishStatus = 'published' AND c.isPublished = true) OR " +
+           "  (:publishStatus = 'unpublished' AND (c.isPublished = false OR c.isPublished IS NULL))) " +
+           "AND (:websiteStatus = 'all' OR " +
+           "  (:websiteStatus = 'normal' AND c.websiteStatus = 'normal') OR " +
+           "  (:websiteStatus = 'problem' AND c.websiteStatus IN ('files_missing', 'nginx_missing', 'both_missing', 'check_failed')) OR " +
+           "  (:websiteStatus = 'unchecked' AND (c.websiteStatus IS NULL OR c.websiteStatus = '')))")
+    Page<Company> findByFilters(@Param("publishStatus") String publishStatus,
+                                @Param("websiteStatus") String websiteStatus,
+                                Pageable pageable);
 }
