@@ -393,10 +393,26 @@ public class ServerDeploymentService {
      */
     private boolean isLocalhost(String host) {
         if (host == null) return false;
-        return host.equals("localhost") ||
-               host.equals("127.0.0.1") ||
-               host.equals("::1") ||
-               host.startsWith("127.");
+        if (host.equals("localhost") || host.equals("127.0.0.1") || host.equals("::1") || host.startsWith("127.")) {
+            return true;
+        }
+        // 检测本机IP
+        try {
+            java.util.Enumeration<java.net.NetworkInterface> interfaces = java.net.NetworkInterface.getNetworkInterfaces();
+            while (interfaces.hasMoreElements()) {
+                java.net.NetworkInterface ni = interfaces.nextElement();
+                java.util.Enumeration<java.net.InetAddress> addresses = ni.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    java.net.InetAddress addr = addresses.nextElement();
+                    if (addr.getHostAddress().equals(host)) {
+                        return true;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("检测本机IP失败: {}", e.getMessage());
+        }
+        return false;
     }
 
     /**
