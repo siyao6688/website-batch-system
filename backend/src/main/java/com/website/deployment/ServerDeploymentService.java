@@ -61,6 +61,12 @@ public class ServerDeploymentService {
 
         log.info("开始部署网站 domain: {} 到服务器 {}", domain, serverHost);
 
+        // 检测是否是本地部署
+        boolean isLocalDeployment = isLocalhost(serverHost);
+        if (isLocalDeployment) {
+            log.info("检测到本地部署，跳过文件上传");
+        }
+
         JSch jsch = new JSch();
         Session session = null;
         ChannelSftp sftpChannel = null;
@@ -74,18 +80,22 @@ public class ServerDeploymentService {
             session.connect(30000);
             log.info("SSH连接成功");
 
-            // 2. 上传网站文件
-            sftpChannel = (ChannelSftp) session.openChannel("sftp");
-            sftpChannel.connect(30000);
-            log.info("SFTP连接成功");
+            // 2. 上传网站文件（非本地部署时）
+            if (!isLocalDeployment) {
+                sftpChannel = (ChannelSftp) session.openChannel("sftp");
+                sftpChannel.connect(30000);
+                log.info("SFTP连接成功");
 
-            // 创建远程目录
-            String remoteDomainPath = remoteWebRoot + "/" + domain;
-            createRemoteDirectory(sftpChannel, remoteDomainPath);
+                // 创建远程目录
+                String remoteDomainPath = remoteWebRoot + "/" + domain;
+                createRemoteDirectory(sftpChannel, remoteDomainPath);
 
-            // 上传文件
-            uploadDirectory(sftpChannel, localWebsitePath, remoteDomainPath);
-            log.info("网站文件上传完成: {}", remoteDomainPath);
+                // 上传文件
+                uploadDirectory(sftpChannel, localWebsitePath, remoteDomainPath);
+                log.info("网站文件上传完成: {}", remoteDomainPath);
+            } else {
+                log.info("本地部署，文件已在: {}", localWebsitePath);
+            }
 
             // 3. 配置Nginx虚拟主机
             createNginxConfig(domain, session);
@@ -376,6 +386,17 @@ public class ServerDeploymentService {
     private void reloadNginx(Session session) throws Exception {
         String result = executeCommand(session, nginxReloadCommand);
         log.info("Nginx重载结果: {}", result);
+    }
+
+    /**
+     * 检测是否是本地部署
+     */
+    private boolean isLocalhost(String host) {
+        if (host == null) return false;
+        return host.equals("localhost") ||
+               host.equals("127.0.0.1") ||
+               host.equals("::1") ||
+               host.startsWith("127.");
     }
 
     /**
