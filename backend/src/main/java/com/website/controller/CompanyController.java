@@ -1,5 +1,7 @@
 package com.website.controller;
 
+import com.website.dto.BatchOperationRequest;
+import com.website.dto.BatchOperationResult;
 import com.website.entity.Company;
 import com.website.entity.WebsiteContent;
 import com.website.entity.WebsiteTemplate;
@@ -63,7 +65,13 @@ public class CompanyController {
     @PostMapping
     public ResponseEntity<?> createCompany(@RequestBody Company company) {
         try {
-            Company createdCompany = companyService.createCompany(company);
+            Company createdCompany;
+            if (company.getHasWebsite() != null && company.getHasWebsite()) {
+                // 如果勾选了搭建官网，创建公司并自动生成部署网站
+                createdCompany = companyService.createCompanyWithWebsite(company);
+            } else {
+                createdCompany = companyService.createCompany(company);
+            }
             return ResponseEntity.ok(createdCompany);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -103,14 +111,25 @@ public class CompanyController {
         }
     }
 
-    @PostMapping("/{id}/unpublish")
-    public ResponseEntity<?> unpublishCompany(@PathVariable Long id) {
+    @PostMapping("/batch/publish")
+    public ResponseEntity<?> batchPublish(@RequestBody BatchOperationRequest request) {
         try {
-            Company company = companyService.unpublishCompany(id);
-            return ResponseEntity.ok(company);
+            BatchOperationResult result = companyService.batchPublish(request.getIds());
+            return ResponseEntity.ok(result);
         } catch (Exception e) {
-            log.error("Failed to unpublish company", e);
-            return ResponseEntity.badRequest().body("Failed to unpublish company: " + e.getMessage());
+            log.error("Failed to batch publish companies", e);
+            return ResponseEntity.badRequest().body("批量发布失败：" + e.getMessage());
+        }
+    }
+
+    @PostMapping("/batch/generate")
+    public ResponseEntity<?> batchGenerate(@RequestBody BatchOperationRequest request) {
+        try {
+            BatchOperationResult result = companyService.batchGenerate(request.getIds());
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("Failed to batch generate websites", e);
+            return ResponseEntity.badRequest().body("批量生成失败：" + e.getMessage());
         }
     }
 

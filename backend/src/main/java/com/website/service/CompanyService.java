@@ -1,5 +1,6 @@
 package com.website.service;
 
+import com.website.dto.BatchOperationResult;
 import com.website.entity.Company;
 import com.website.entity.WebsiteContent;
 import com.website.entity.WebsiteTemplate;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.nio.file.Path;
@@ -134,6 +136,43 @@ public class CompanyService {
 
         // 创建新记录
         return companyRepository.save(company);
+    }
+
+    /**
+     * 创建公司并自动生成网站（部署到服务器但不发布）
+     * 用于Excel导入后自动生成网站
+     */
+    @Transactional
+    public Company createCompanyWithWebsite(Company company) {
+        // 先创建公司
+        Company savedCompany = createCompany(company);
+
+        // 自动选择使用次数最少的模板
+        WebsiteTemplate template = selectLeastUsedTemplate();
+        savedCompany.setTemplateId(template.getId());
+        savedCompany.setHasWebsite(true);
+
+        // 生成网站
+        try {
+            Path websitePath = generatorService.generateWebsite(savedCompany, template);
+            log.info("为公司 {} 自动生成网站，使用模板: {}", savedCompany.getCompanyName(), template.getTemplateCode());
+
+            // 部署到服务器（但不发布，不设置 isPublished）
+            try {
+                deploymentService.deployWebsite(savedCompany.getDomain(), websitePath);
+                deploymentService.generateLocalNginxConfig(savedCompany.getDomain(), websitePath);
+                log.info("已将网站部署到服务器: {}", savedCompany.getDomain());
+            } catch (Exception e) {
+                log.error("部署网站到服务器失败: {}", savedCompany.getDomain(), e);
+                // 部署失败不影响公司创建，只是标记为未生成网站
+                savedCompany.setHasWebsite(false);
+            }
+        } catch (Exception e) {
+            log.error("自动生成网站失败: {}", savedCompany.getCompanyName(), e);
+            savedCompany.setHasWebsite(false);
+        }
+
+        return companyRepository.save(savedCompany);
     }
 
     @Transactional
@@ -257,14 +296,6 @@ public class CompanyService {
     }
 
     @Transactional
-    public Company unpublishCompany(Long id) {
-        Company company = getCompanyById(id);
-        company.setIsPublished(false);
-        company.setPublishDate(null);
-        return companyRepository.save(company);
-    }
-
-    @Transactional
     public Company toggleCompanyStatus(Long id) {
         Company company = getCompanyById(id);
         company.setIsActive(!company.getIsActive());
@@ -343,5 +374,156 @@ public class CompanyService {
             throw new EntityNotFoundException("Template not found");
         }
         templateRepository.deleteById(id);
+    }
+
+    /**
+     * 选择使用次数最少的模板（自动分配模式）
+     * 确保样式尽可能不重复
+     */
+    private WebsiteTemplate selectLeastUsedTemplate() {
+        List<WebsiteTemplate> activeTemplates = templateRepository.findByIsActive(true);
+        if (activeTemplates.isEmpty()) {
+            throw new EntityNotFoundException("No active template found");
+        }
+
+        WebsiteTemplate leastUsed = null;
+        int minCount = Integer.MAX_VALUE;
+
+        for (WebsiteTemplate template : activeTemplates) {
+            int count = companyRepository.countByTemplateIdAndIsPublished(template.getId(), true);
+            if (count < minCount) {
+                minCount = count;
+                leastUsed = template;
+            }
+        }
+
+        log.info("自动选择使用次数最少的模板: {} (使用次数: {})",
+                leastUsed != null ? leastUsed.getTemplateCode() : "null", minCount);
+        return leastUsed != null ? leastUsed : activeTemplates.get(0);
+    }
+
+    /**
+     * 为公司选择模板（优先使用使用次数最少的模板）
+     */
+    private WebsiteTemplate selectTemplateForCompany(Company company) {
+        // 如果公司已指定模板且该模板未被其他已发布网站使用，则使用指定模板
+        if (company.getTemplateId() != null) {
+            WebsiteTemplate template = templateRepository.findById(company.getTemplateId())
+                    .orElseThrow(() -> new EntityNotFoundException("Template not found"));
+            int usageCount = companyRepository.countByTemplateIdAndIsPublished(template.getId(), true);
+            if (usageCount == 0) {
+                return template;
+            }
+        }
+        // 否则选择使用次数最少的模板
+        return selectLeastUsedTemplate();
+    }
+
+    /**
+     * 批量发布公司网站
+     */
+    @Transactional
+    public BatchOperationResult batchPublish(List<Long> ids) {
+        List<BatchOperationResult.FailureDetail> failures = new ArrayList<>();
+        int successCount = 0;
+
+        for (Long id : ids) {
+            try {
+                Company company = getCompanyById(id);
+
+                // 已发布的跳过
+                if (company.getIsPublished()) {
+                    failures.add(new BatchOperationResult.FailureDetail(
+                        id, company.getCompanyName(), company.getDomain(), "已发布，无需重复发布"));
+                    continue;
+                }
+
+                // 选择使用次数最少的模板
+                WebsiteTemplate template = selectTemplateForCompany(company);
+                company.setTemplateId(template.getId());
+                company.setHasWebsite(true);
+
+                // 生成网站
+                Path websitePath = generatorService.generateWebsite(company, template);
+
+                // 部署到服务器
+                try {
+                    deploymentService.deployWebsite(company.getDomain(), websitePath);
+                } catch (Exception e) {
+                    log.error("部署网站到服务器失败：{}", company.getDomain(), e);
+                    failures.add(new BatchOperationResult.FailureDetail(
+                        id, company.getCompanyName(), company.getDomain(), "部署失败：" + e.getMessage()));
+                    continue;
+                }
+
+                // 生成本地Nginx配置文件
+                deploymentService.generateLocalNginxConfig(company.getDomain(), websitePath);
+
+                // 更新状态
+                company.setIsPublished(true);
+                company.setPublishDate(LocalDateTime.now());
+                company.setIsActive(true);
+                companyRepository.save(company);
+                successCount++;
+            } catch (Exception e) {
+                Company company = companyRepository.findById(id).orElse(null);
+                failures.add(new BatchOperationResult.FailureDetail(
+                    id,
+                    company != null ? company.getCompanyName() : "未知",
+                    company != null ? company.getDomain() : "未知",
+                    e.getMessage()
+                ));
+            }
+        }
+
+        return BatchOperationResult.builder()
+                .totalCount(ids.size())
+                .successCount(successCount)
+                .failCount(failures.size())
+                .message(String.format("批量发布完成：成功 %d，失败 %d", successCount, failures.size()))
+                .failures(failures)
+                .build();
+    }
+
+    /**
+     * 批量生成网站（不部署）
+     */
+    @Transactional
+    public BatchOperationResult batchGenerate(List<Long> ids) {
+        List<BatchOperationResult.FailureDetail> failures = new ArrayList<>();
+        int successCount = 0;
+
+        for (Long id : ids) {
+            try {
+                Company company = getCompanyById(id);
+
+                // 选择使用次数最少的模板
+                WebsiteTemplate template = selectTemplateForCompany(company);
+                company.setTemplateId(template.getId());
+                company.setHasWebsite(true);
+
+                // 仅生成网站（不部署）
+                generatorService.generateWebsite(company, template);
+
+                companyRepository.save(company);
+                successCount++;
+            } catch (Exception e) {
+                Company company = companyRepository.findById(id).orElse(null);
+                failures.add(new BatchOperationResult.FailureDetail(
+                    id,
+                    company != null ? company.getCompanyName() : "未知",
+                    company != null ? company.getDomain() : "未知",
+                    e.getMessage()
+                ));
+            }
+        }
+
+        return BatchOperationResult.builder()
+                .totalCount(ids.size())
+                .successCount(successCount)
+                .failCount(failures.size())
+                .message(String.format("批量生成完成：成功 %d，失败 %d", successCount, failures.size()))
+                .failures(failures)
+                .build();
     }
 }

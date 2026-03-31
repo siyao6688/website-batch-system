@@ -71,9 +71,10 @@ public class ExcelUploadController {
             for (int i = 0; i < companies.size(); i++) {
                 Company company = companies.get(i);
                 try {
-                    companyService.createCompany(company);
+                    // 创建公司并自动生成网站（不发布）
+                    companyService.createCompanyWithWebsite(company);
                     successCount++;
-                    log.debug("Successfully created company: {}", company.getCompanyName());
+                    log.debug("Successfully created company with website: {}", company.getCompanyName());
                 } catch (Exception e) {
                     errorCount++;
                     String errorMsg = String.format("第%d行公司'%s'导入失败: %s",
@@ -89,8 +90,8 @@ public class ExcelUploadController {
                 return ResponseEntity.status(207).body(message); // 207 Multi-Status
             }
 
-            log.info("Successfully imported {} companies", successCount);
-            return ResponseEntity.ok("成功导入 " + successCount + " 家公司信息");
+            log.info("Successfully imported {} companies with auto-generated websites", successCount);
+            return ResponseEntity.ok("成功导入 " + successCount + " 家公司信息，已自动生成网站（未发布）");
         } catch (IOException e) {
             log.error("Failed to parse Excel file", e);
             return ResponseEntity.badRequest().body("Excel文件解析失败: " + e.getMessage() +

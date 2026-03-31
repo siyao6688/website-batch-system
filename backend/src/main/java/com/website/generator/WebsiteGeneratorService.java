@@ -55,11 +55,13 @@ public class WebsiteGeneratorService {
     public Path generateWebsite(Company company, WebsiteTemplate template, boolean preview) {
         try {
             String basePath = preview ? previewOutputPath : outputPath;
+            String websiteDomain = preview ? company.getDomain() + "-preview" : company.getDomain();
+
             // 1. 生成网站内容
             Map<String, Object> data = buildWebsiteData(company);
             // 预览模式添加静态资源基础路径
             if (preview) {
-                data.put("staticPath", "/api/preview/" + company.getDomain() + "/static");
+                data.put("staticPath", "/api/preview/" + websiteDomain + "/static");
             } else {
                 data.put("staticPath", "static");
             }
@@ -70,13 +72,13 @@ public class WebsiteGeneratorService {
             // 3. 渲染模板
             String renderedHtml = renderTemplate(templateContent, data);
 
-            // 4. 保存HTML文件
-            Path websitePath = saveWebsiteFile(company.getDomain(), renderedHtml, basePath);
+            // 4. 保存HTML文件 - 使用正确的域名
+            Path websitePath = saveWebsiteFile(websiteDomain, renderedHtml, basePath);
 
-            // 5. 复制静态资源
-            copyStaticResources(company.getDomain(), basePath);
+            // 5. 复制静态资源 - 使用正确的域名
+            copyStaticResources(websiteDomain, basePath);
 
-            log.info("Successfully generated website for domain: {} (preview: {})", company.getDomain(), preview);
+            log.info("Successfully generated website for domain: {} (preview: {})", websiteDomain, preview);
             return websitePath;
         } catch (Exception e) {
             log.error("Failed to generate website for domain: {} (preview: {})", company.getDomain(), preview, e);

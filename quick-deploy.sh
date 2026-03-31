@@ -5,7 +5,7 @@
 set -e
 
 SERVER_IP="$1"
-SERVER_USER="root"  # 或改为您的用户名，如 "ubuntu"
+SERVER_USER="ubuntu"  # 或改为您的用户名，如 "ubuntu"
 
 if [ -z "$SERVER_IP" ]; then
     echo "错误：请提供服务器IP地址"

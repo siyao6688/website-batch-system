@@ -47,6 +47,15 @@ bin/
 # Docker
 docker-compose.override.yml
 
+# Generated websites (local testing only)
+backend/generated-websites/
+backend/preview-websites/
+backend/*.nginx.conf
+
+# Backup files
+*.bak
+*.bck
+
 # System
 Thumbs.db
 ehthumbs.db

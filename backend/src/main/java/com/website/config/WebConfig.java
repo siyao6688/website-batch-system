@@ -27,13 +27,11 @@ public class WebConfig implements WebMvcConfigurer {
         if (!absolutePreviewPath.endsWith("/")) {
             absolutePreviewPath += "/";
         }
-        // 主预览路径 - 处理 index.html 等文件
-        registry.addResourceHandler("/api/preview/**")
-                .addResourceLocations("file:" + absolutePreviewPath);
 
-        // 预览网站的静态资源路径 - 支持 /api/preview/{domain}/static/** 格式
-        // 使用通配符映射所有预览域名的 static 目录
-        registry.addResourceHandler("/api/preview/*/static/**")
+        // 主预览路径 - 处理所有预览网站文件（包括 index.html 和静态资源）
+        // 请求 /api/preview/{domain}-preview/static/css/style.css
+        // 映射到 {previewOutputPath}/{domain}-preview/static/css/style.css
+        registry.addResourceHandler("/api/preview/**")
                 .addResourceLocations("file:" + absolutePreviewPath);
 
         // 备用预览路径

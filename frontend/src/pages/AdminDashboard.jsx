@@ -54,6 +54,10 @@ const AdminDashboard = () => {
   const [excelLoading, setExcelLoading] = useState(false);
   const [importedCompanies, setImportedCompanies] = useState([]);
 
+  // 批量操作状态
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const [batchLoading, setBatchLoading] = useState(false);
+
   // 表格列配置
   const columns = [
     {
@@ -142,22 +146,12 @@ const AdminDashboard = () => {
             />
           </Tooltip>
           {record.isPublished ? (
-            <Popconfirm
-              title="确认取消发布？"
-              onConfirm={() => handleUnpublish(record.id)}
-              okText="确认"
-              cancelText="取消"
-            >
-              <Tooltip title="取消发布">
-                <Button
-                  type="text"
-                  icon={<ClockCircleOutlined />}
-                />
-              </Tooltip>
-            </Popconfirm>
+            <Tooltip title="已发布">
+              <Tag color="green">已发布</Tag>
+            </Tooltip>
           ) : (
             <Popconfirm
-              title="确认发布？"
+              title="确认发布？（会自动生成网站并部署）"
               onConfirm={() => handlePublish(record.id)}
               okText="确认"
               cancelText="取消"
@@ -166,7 +160,6 @@ const AdminDashboard = () => {
                 <Button
                   type="text"
                   icon={<CheckCircleOutlined />}
-                  disabled={!record.hasWebsite}
                 />
               </Tooltip>
             </Popconfirm>
@@ -496,18 +489,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // 取消发布
-  const handleUnpublish = async (id) => {
-    try {
-      await companyApi.unpublishCompany(id);
-      message.success('已取消发布');
-      loadData();
-    } catch (error) {
-      const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
-      message.error('操作失败：' + errorMsg);
-    }
-  };
-
   // 删除
   const handleDelete = async (id) => {
     try {
@@ -552,8 +533,84 @@ const AdminDashboard = () => {
 
   // 表格行选择
   const rowSelection = {
-    onChange: (selectedRowKeys, selectedRows) => {
-      console.log('Selected:', selectedRowKeys, selectedRows);
+    selectedRowKeys,
+    onChange: (newSelectedRowKeys) => setSelectedRowKeys(newSelectedRowKeys),
+    getCheckboxProps: (record) => ({
+      disabled: record.isPublished, // 已发布的不允许选择
+    }),
+  };
+
+  // 批量发布
+  const handleBatchPublish = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要发布的公司');
+      return;
+    }
+    setBatchLoading(true);
+    try {
+      const response = await companyApi.batchPublish(selectedRowKeys);
+      const result = response.data;
+      if (result.failCount > 0) {
+        message.warning(result.message);
+        if (result.failures && result.failures.length > 0) {
+          Modal.info({
+            title: '发布失败详情',
+            content: (
+              <div>
+                {result.failures.map((f, idx) => (
+                  <p key={idx}>{f.companyName} ({f.domain}): {f.reason}</p>
+                ))}
+              </div>
+            ),
+          });
+        }
+      } else {
+        message.success(result.message);
+      }
+      setSelectedRowKeys([]);
+      loadData();
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
+      message.error('批量发布失败：' + errorMsg);
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  // 批量生成网站
+  const handleBatchGenerate = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要生成网站的公司');
+      return;
+    }
+    setBatchLoading(true);
+    try {
+      const response = await companyApi.batchGenerate(selectedRowKeys);
+      const result = response.data;
+      if (result.failCount > 0) {
+        message.warning(result.message);
+        if (result.failures && result.failures.length > 0) {
+          Modal.info({
+            title: '生成失败详情',
+            content: (
+              <div>
+                {result.failures.map((f, idx) => (
+                  <p key={idx}>{f.companyName} ({f.domain}): {f.reason}</p>
+                ))}
+              </div>
+            ),
+          });
+        }
+      } else {
+        message.success(result.message);
+      }
+      setSelectedRowKeys([]);
+      loadData();
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
+      message.error('批量生成失败：' + errorMsg);
+    } finally {
+      setBatchLoading(false);
     }
   };
 
@@ -726,6 +783,28 @@ const AdminDashboard = () => {
                 <Badge count={filteredCompanies.length} />
               </Space>
               <Space>
+                {selectedRowKeys.length > 0 && (
+                  <>
+                    <Button
+                      type="primary"
+                      icon={<CheckCircleOutlined />}
+                      loading={batchLoading}
+                      onClick={handleBatchPublish}
+                    >
+                      批量发布 ({selectedRowKeys.length})
+                    </Button>
+                    <Button
+                      icon={<PlusSquareOutlined />}
+                      loading={batchLoading}
+                      onClick={handleBatchGenerate}
+                    >
+                      批量生成网站 ({selectedRowKeys.length})
+                    </Button>
+                    <Button onClick={() => setSelectedRowKeys([])}>
+                      取消选择
+                    </Button>
+                  </>
+                )}
                 <Button icon={<PlusOutlined />} type="primary" onClick={() => {
                   setEditingCompany(null);
                   setIsModalVisible(true);

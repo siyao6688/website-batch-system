@@ -55,8 +55,11 @@ export const companyApi = {
     // 发布公司
     publishCompany: (id) => api.post(`/companies/${id}/publish`),
 
-    // 取消发布
-    unpublishCompany: (id) => api.post(`/companies/${id}/unpublish`),
+    // 批量发布
+    batchPublish: (ids) => api.post('/companies/batch/publish', { ids }),
+
+    // 批量生成网站
+    batchGenerate: (ids) => api.post('/companies/batch/generate', { ids }),
 
     // 切换状态
     toggleCompanyStatus: (id) => api.post(`/companies/${id}/toggle-status`),

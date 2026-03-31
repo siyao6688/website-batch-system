@@ -62,7 +62,11 @@
       "Bash(scp -i C:/Users/1/.ssh/id_rsa -o StrictHostKeyChecking=no \"d:/Code/website-batch-system/backend/src/main/java/com/website/config/WebConfig.java\" root@124.223.45.101:/opt/website-batch-system/backend/src/main/java/com/website/config/WebConfig.java)",
       "Bash(curl -s \"http://124.223.45.101:8080/api/preview/felixor.cn-preview/static/css/standard-style.css\")",
       "Bash(curl -v \"http://124.223.45.101:8080/api/preview/felixor.cn-preview/static/css/standard-style.css\")",
-      "Bash(dir backendpreview-websites:*)"
+      "Bash(dir backendpreview-websites:*)",
+      "Read(//c/Users/1/.ssh/**)",
+      "Bash(chmod 600 ~/.ssh/id_rsa)",
+      "Bash(ssh -T -o StrictHostKeyChecking=no git@github.com)",
+      "Bash(clip.exe)"
     ]
   }
 }
