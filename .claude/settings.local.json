@@ -67,7 +67,11 @@
       "Bash(chmod 600 ~/.ssh/id_rsa)",
       "Bash(ssh -T -o StrictHostKeyChecking=no git@github.com)",
       "Bash(clip.exe)",
-      "Bash(dir /b \"d:\\\\Code\\\\website-batch-system\\\\frontend\\\\dist\")"
+      "Bash(dir /b \"d:\\\\Code\\\\website-batch-system\\\\frontend\\\\dist\")",
+      "Bash(ls -la target/*.jar)",
+      "Bash(scp -i ~/.ssh/id_rsa d:/Code/website-batch-system/backend/target/website-batch-system-1.0.0.jar root@124.223.45.101:/opt/website-batch-system/backend/target/)",
+      "Bash(npm run:*)",
+      "Bash(scp -i ~/.ssh/id_rsa -r d:/Code/website-batch-system/frontend/dist/* root@124.223.45.101:/var/www/frontend/)"
     ]
   }
 }

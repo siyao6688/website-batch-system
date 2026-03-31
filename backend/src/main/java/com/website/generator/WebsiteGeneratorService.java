@@ -54,6 +54,11 @@ public class WebsiteGeneratorService {
 
     public Path generateWebsite(Company company, WebsiteTemplate template, boolean preview) {
         try {
+            // 验证域名不为空
+            if (company.getDomain() == null || company.getDomain().trim().isEmpty()) {
+                throw new IllegalArgumentException("公司域名不能为空，无法生成网站");
+            }
+
             String basePath = preview ? previewOutputPath : outputPath;
             String websiteDomain = preview ? company.getDomain() + "-preview" : company.getDomain();
 

@@ -355,10 +355,14 @@ const AdminDashboard = () => {
   const loadData = async (page = 1, pageSize = 20) => {
     setLoading(true);
     try {
+      // 确保 page 和 pageSize 是有效数字
+      const validPage = Number.isFinite(page) ? Math.max(0, page - 1) : 0;
+      const validPageSize = Number.isFinite(pageSize) ? pageSize : 20;
+
       const [companiesResponse, templatesResponse] = await Promise.all([
         companyApi.getCompanies({
-          page: page - 1,
-          size: pageSize,
+          page: validPage,
+          size: validPageSize,
           sortBy: 'id',
           sortDir: 'desc'
         }),
@@ -371,11 +375,11 @@ const AdminDashboard = () => {
         setCompanies(companiesResponse.data.content);
         setFilteredCompanies(companiesResponse.data.content);
         setPagination({
-          current: companiesResponse.data.currentPage + 1,
-          pageSize: companiesResponse.data.pageSize,
-          total: companiesResponse.data.totalElements
+          current: (companiesResponse.data.currentPage || 0) + 1,
+          pageSize: companiesResponse.data.pageSize || validPageSize,
+          total: companiesResponse.data.totalElements || 0
         });
-        updateStatsFromTotal(companiesResponse.data.totalElements, companiesResponse.data.content);
+        updateStatsFromTotal(companiesResponse.data.totalElements || 0, companiesResponse.data.content);
       } else if (Array.isArray(companiesResponse.data)) {
         // 兼容旧的非分页响应
         setCompanies(companiesResponse.data);
@@ -712,7 +716,7 @@ const AdminDashboard = () => {
               style={{ width: 400 }}
             />
             <Space size="large" className="header-actions">
-              <Button icon={<ReloadOutlined />} onClick={loadData}>
+              <Button icon={<ReloadOutlined />} onClick={() => loadData(pagination.current || 1, pagination.pageSize || 20)}>
                 刷新
               </Button>
               <Button type="primary" icon={<ExportOutlined />} onClick={() => message.info('导出数据功能开发中')}>
