@@ -65,12 +65,16 @@ const AdminDashboard = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [batchLoading, setBatchLoading] = useState(false);
 
+  // 篮选状态
+  const [publishFilter, setPublishFilter] = useState('all');
+  const [websiteStatusFilter, setWebsiteStatusFilter] = useState('all');
+
   // 表格列配置
   const columns = [
     {
       title: '序号',
       key: 'serialNumber',
-      width: 80,
+      width: 60,
       render: (_, __, index) => index + 1,
     },
     {
@@ -78,7 +82,14 @@ const AdminDashboard = () => {
       dataIndex: 'companyName',
       key: 'companyName',
       width: 200,
-      render: (text) => <a onClick={() => handleViewCompany(text)}>{text}</a>
+      render: (text, record) => (
+        <Space>
+          <a onClick={() => handleViewCompany(text)}>{text}</a>
+          <Tag color={record.isPublished ? 'green' : 'red'}>
+            {record.isPublished ? '已发布' : '未发布'}
+          </Tag>
+        </Space>
+      )
     },
     {
       title: '邮箱',
@@ -90,14 +101,36 @@ const AdminDashboard = () => {
       title: '域名',
       dataIndex: 'domain',
       key: 'domain',
-      width: 180,
-      render: (text) => {
+      width: 250,
+      render: (text, record) => {
         if (!text) return '-';
         const url = `http://${text}`;
+        // 获取网站状态Tag
+        let statusTag;
+        if (!record.isPublished) {
+          statusTag = <Tag color="default">未发布</Tag>;
+        } else if (!record.websiteStatus) {
+          statusTag = <Tag color="blue">待检测</Tag>;
+        } else if (record.websiteStatus === 'normal') {
+          statusTag = <Tag color="green">正常</Tag>;
+        } else if (record.websiteStatus === 'files_missing') {
+          statusTag = <Tag color="orange">文件缺失</Tag>;
+        } else if (record.websiteStatus === 'nginx_missing') {
+          statusTag = <Tag color="orange">配置缺失</Tag>;
+        } else if (record.websiteStatus === 'both_missing') {
+          statusTag = <Tag color="red">完全失效</Tag>;
+        } else if (record.websiteStatus === 'check_failed') {
+          statusTag = <Tag color="red">检测失败</Tag>;
+        } else {
+          statusTag = <Tag color="default">{record.websiteStatus}</Tag>;
+        }
         return (
-          <a href={url} target="_blank" rel="noopener noreferrer">
-            {text}
-          </a>
+          <Space>
+            <a href={url} target="_blank" rel="noopener noreferrer">
+              {text}
+            </a>
+            {statusTag}
+          </Space>
         );
       }
     },
@@ -126,7 +159,7 @@ const AdminDashboard = () => {
       title: '操作',
       key: 'action',
       fixed: 'right',
-      width: 200,
+      width: 280,
       render: (_, record) => (
         <Space size="small">
           <Tooltip title="编辑">
@@ -152,9 +185,19 @@ const AdminDashboard = () => {
             />
           </Tooltip>
           {record.isPublished ? (
-            <Tooltip title="已发布">
-              <Tag color="green">已发布</Tag>
-            </Tooltip>
+            <Popconfirm
+              title="确认重新发布？（会覆盖现有网站）"
+              onConfirm={() => handleRepublish(record.id)}
+              okText="确认"
+              cancelText="取消"
+            >
+              <Tooltip title="重新发布">
+                <Button
+                  type="text"
+                  icon={<ReloadOutlined />}
+                />
+              </Tooltip>
+            </Popconfirm>
           ) : (
             <Popconfirm
               title="确认发布？（会自动生成网站并部署）"
@@ -169,6 +212,15 @@ const AdminDashboard = () => {
                 />
               </Tooltip>
             </Popconfirm>
+          )}
+          {record.isPublished && (
+            <Tooltip title="检测状态">
+              <Button
+                type="text"
+                icon={<InfoCircleOutlined />}
+                onClick={() => handleCheckStatus(record.id)}
+              />
+            </Tooltip>
           )}
           <Popconfirm
             title="确认删除？"
@@ -571,9 +623,6 @@ const AdminDashboard = () => {
   const rowSelection = {
     selectedRowKeys,
     onChange: (newSelectedRowKeys) => setSelectedRowKeys(newSelectedRowKeys),
-    getCheckboxProps: (record) => ({
-      disabled: record.isPublished, // 已发布的不允许选择
-    }),
   };
 
   // 批量发布
@@ -655,6 +704,165 @@ const AdminDashboard = () => {
       message.error('批量生成失败：' + errorMsg);
     } finally {
       setBatchLoading(false);
+    }
+  };
+
+  // 重新发布单个网站
+  const handleRepublish = async (id) => {
+    try {
+      await companyApi.republishCompany(id);
+      message.success('重新发布成功');
+      loadData(pagination.current, pagination.pageSize);
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
+      message.error('重新发布失败：' + errorMsg);
+    }
+  };
+
+  // 检测单个网站状态
+  const handleCheckStatus = async (id) => {
+    try {
+      const response = await companyApi.checkStatus(id);
+      const status = response.data.websiteStatus;
+      if (status === 'normal') {
+        message.success('网站状态正常');
+      } else {
+        message.warning(`网站状态异常：${response.data.statusDescription || status}`);
+      }
+      loadData(pagination.current, pagination.pageSize);
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
+      message.error('检测失败：' + errorMsg);
+    }
+  };
+
+  // 批量重新发布
+  const handleBatchRepublish = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要重新发布的公司');
+      return;
+    }
+    if (selectedRowKeys.length > 100) {
+      message.warning('一次最多只能发布100条数据，请减少选择');
+      return;
+    }
+    setBatchLoading(true);
+    try {
+      const response = await companyApi.batchRepublish(selectedRowKeys);
+      const result = response.data;
+      if (result.failCount > 0) {
+        message.warning(result.message);
+        if (result.failures && result.failures.length > 0) {
+          Modal.info({
+            title: '重新发布失败详情',
+            content: (
+              <div>
+                {result.failures.map((f, idx) => (
+                  <p key={idx}>{f.companyName} ({f.domain}): {f.reason}</p>
+                ))}
+              </div>
+            ),
+          });
+        }
+      } else {
+        message.success(result.message);
+      }
+      setSelectedRowKeys([]);
+      loadData(pagination.current, pagination.pageSize);
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
+      message.error('批量重新发布失败：' + errorMsg);
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  // 批量检测状态
+  const handleBatchCheckStatus = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要检测的公司');
+      return;
+    }
+    if (selectedRowKeys.length > 100) {
+      message.warning('一次最多只能检测100条数据，请减少选择');
+      return;
+    }
+    setBatchLoading(true);
+    try {
+      const response = await companyApi.batchCheckStatus(selectedRowKeys);
+      const result = response.data;
+      message.success(result.message);
+      setSelectedRowKeys([]);
+      loadData(pagination.current, pagination.pageSize);
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
+      message.error('批量检测失败：' + errorMsg);
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  // 检测所有已发布网站状态
+  const handleCheckAllStatus = async () => {
+    setBatchLoading(true);
+    try {
+      const response = await companyApi.checkAllStatus();
+      const problemCount = response.data.problemCount;
+      if (problemCount > 0) {
+        message.warning(`检测完成，发现 ${problemCount} 个网站有问题`);
+      } else {
+        message.success('检测完成，所有网站状态正常');
+      }
+      loadData(pagination.current, pagination.pageSize);
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
+      message.error('检测失败：' + errorMsg);
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  // 篮选处理
+  const handlePublishFilterChange = (value) => {
+    setPublishFilter(value);
+    loadFilteredData(value, websiteStatusFilter);
+  };
+
+  const handleWebsiteStatusFilterChange = (value) => {
+    setWebsiteStatusFilter(value);
+    loadFilteredData(publishFilter, value);
+  };
+
+  const loadFilteredData = async (publishStatus, websiteStatus) => {
+    if (publishStatus === 'all' && websiteStatus === 'all') {
+      loadData(1, pagination.pageSize);
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await companyApi.getCompanies({
+        page: 0,
+        size: pagination.pageSize,
+        sortBy: 'id',
+        sortDir: 'desc',
+        publishStatus: publishStatus,
+        websiteStatus: websiteStatus
+      });
+      if (response.data.content) {
+        setCompanies(response.data.content);
+        setFilteredCompanies(response.data.content);
+        setPagination({
+          current: (response.data.currentPage || 0) + 1,
+          pageSize: response.data.pageSize || pagination.pageSize,
+          total: response.data.totalElements || 0
+        });
+        updateStatsFromTotal(response.data.totalElements || 0, response.data.content);
+      }
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
+      message.error('筛选失败：' + errorMsg);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -826,9 +1034,46 @@ const AdminDashboard = () => {
                 <span className="card-title">公司列表</span>
                 <Badge count={pagination.total} />
               </Space>
-              <Space>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {/* 第一行：筛选和检测 */}
+                <Space>
+                  <Select
+                    placeholder="发布状态"
+                    value={publishFilter}
+                    onChange={handlePublishFilterChange}
+                    style={{ width: 120 }}
+                  >
+                    <Select.Option value="all">全部</Select.Option>
+                    <Select.Option value="unpublished">未发布</Select.Option>
+                    <Select.Option value="published">已发布</Select.Option>
+                  </Select>
+                  <Select
+                    placeholder="网站状态"
+                    value={websiteStatusFilter}
+                    onChange={handleWebsiteStatusFilterChange}
+                    style={{ width: 120 }}
+                  >
+                    <Select.Option value="all">全部</Select.Option>
+                    <Select.Option value="normal">正常</Select.Option>
+                    <Select.Option value="problem">有问题</Select.Option>
+                    <Select.Option value="unchecked">待检测</Select.Option>
+                  </Select>
+                  <Button icon={<InfoCircleOutlined />} loading={batchLoading} onClick={handleCheckAllStatus}>
+                    检测所有网站
+                  </Button>
+                  <Button icon={<PlusOutlined />} type="primary" onClick={() => {
+                    setEditingCompany(null);
+                    setIsModalVisible(true);
+                  }}>
+                    新增公司
+                  </Button>
+                  <Button icon={<UploadOutlined />} onClick={handleExcelImportClick}>
+                    导入Excel
+                  </Button>
+                </Space>
+                {/* 第二行：批量操作按钮 */}
                 {selectedRowKeys.length > 0 && (
-                  <>
+                  <Space>
                     <Button
                       type="primary"
                       icon={<CheckCircleOutlined />}
@@ -838,30 +1083,29 @@ const AdminDashboard = () => {
                       批量发布 ({selectedRowKeys.length})
                     </Button>
                     <Button
+                      icon={<ReloadOutlined />}
+                      loading={batchLoading}
+                      onClick={handleBatchRepublish}
+                    >
+                      批量重新发布 ({selectedRowKeys.length})
+                    </Button>
+                    <Button
                       icon={<PlusSquareOutlined />}
                       loading={batchLoading}
                       onClick={handleBatchGenerate}
                     >
-                      批量生成网站 ({selectedRowKeys.length})
+                      批量生成 ({selectedRowKeys.length})
                     </Button>
-                    <Button onClick={() => setSelectedRowKeys([])}>
-                      取消选择
+                    <Button
+                      icon={<InfoCircleOutlined />}
+                      loading={batchLoading}
+                      onClick={handleBatchCheckStatus}
+                    >
+                      批量检测 ({selectedRowKeys.length})
                     </Button>
-                  </>
+                  </Space>
                 )}
-                <Button icon={<PlusOutlined />} type="primary" onClick={() => {
-                  setEditingCompany(null);
-                  setIsModalVisible(true);
-                }}>
-                  新增公司
-                </Button>
-                <Button icon={<ExportOutlined />} onClick={() => message.info('导出Excel功能开发中')}>
-                  导出Excel
-                </Button>
-                <Button icon={<UploadOutlined />} onClick={handleExcelImportClick}>
-                  导入Excel
-                </Button>
-              </Space>
+              </div>
             </div>
 
             <Table

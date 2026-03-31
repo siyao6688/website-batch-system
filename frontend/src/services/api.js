@@ -74,6 +74,27 @@ export const companyApi = {
     // 预览网站
     previewWebsite: (id) => api.post(`/companies/${id}/preview`),
 
+    // 重新发布公司网站
+    republishCompany: (id) => api.post(`/companies/${id}/republish`),
+
+    // 批量重新发布
+    batchRepublish: (ids) => api.post('/companies/batch/republish', { ids }, {
+        timeout: 300000 // 5分钟超时
+    }),
+
+    // 检测网站状态
+    checkStatus: (id) => api.post(`/companies/${id}/check-status`),
+
+    // 批量检测状态
+    batchCheckStatus: (ids) => api.post('/companies/batch/check-status', { ids }, {
+        timeout: 120000 // 2分钟超时
+    }),
+
+    // 检测所有已发布网站状态
+    checkAllStatus: () => api.post('/companies/check-all-status', {}, {
+        timeout: 300000 // 5分钟超时
+    }),
+
     // 获取公司列表（包含状态过滤）
     getCompanies: (params) => api.get('/companies', { params })
 };
