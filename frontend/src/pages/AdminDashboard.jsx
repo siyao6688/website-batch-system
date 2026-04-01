@@ -567,12 +567,22 @@ const AdminDashboard = () => {
     }
   };
 
+  // 刷新数据（保持当前筛选条件）
+  const refreshData = () => {
+    if (publishFilter === 'all' && websiteStatusFilter === 'all') {
+      loadData(pagination.current, pagination.pageSize);
+    } else {
+      loadFilteredData(publishFilter, websiteStatusFilter);
+    }
+    loadStats(); // 同时刷新统计数据
+  };
+
   // 发布
   const handlePublish = async (id) => {
     try {
       await companyApi.publishCompany(id);
       message.success('发布成功');
-      loadData(pagination.current, pagination.pageSize);
+      refreshData();
     } catch (error) {
       const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
       message.error('发布失败：' + errorMsg);
@@ -584,7 +594,7 @@ const AdminDashboard = () => {
     try {
       await companyApi.deleteCompany(id);
       message.success('删除成功');
-      loadData(pagination.current, pagination.pageSize);
+      refreshData();
     } catch (error) {
       const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
       message.error('删除失败：' + errorMsg);
@@ -659,7 +669,7 @@ const AdminDashboard = () => {
         message.success(result.message);
       }
       setSelectedRowKeys([]);
-      loadData(pagination.current, pagination.pageSize);
+      refreshData();
     } catch (error) {
       const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
       message.error('批量发布失败：' + errorMsg);
@@ -700,7 +710,7 @@ const AdminDashboard = () => {
         message.success(result.message);
       }
       setSelectedRowKeys([]);
-      loadData(pagination.current, pagination.pageSize);
+      refreshData();
     } catch (error) {
       const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
       message.error('批量生成失败：' + errorMsg);
@@ -714,7 +724,7 @@ const AdminDashboard = () => {
     try {
       await companyApi.republishCompany(id);
       message.success('重新发布成功');
-      loadData(pagination.current, pagination.pageSize);
+      refreshData();
     } catch (error) {
       const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
       message.error('重新发布失败：' + errorMsg);
@@ -731,7 +741,7 @@ const AdminDashboard = () => {
       } else {
         message.warning(`网站状态异常：${response.data.statusDescription || status}`);
       }
-      loadData(pagination.current, pagination.pageSize);
+      refreshData();
     } catch (error) {
       const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
       message.error('检测失败：' + errorMsg);
@@ -770,7 +780,7 @@ const AdminDashboard = () => {
         message.success(result.message);
       }
       setSelectedRowKeys([]);
-      loadData(pagination.current, pagination.pageSize);
+      refreshData();
     } catch (error) {
       const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
       message.error('批量重新发布失败：' + errorMsg);
@@ -795,7 +805,7 @@ const AdminDashboard = () => {
       const result = response.data;
       message.success(result.message);
       setSelectedRowKeys([]);
-      loadData(pagination.current, pagination.pageSize);
+      refreshData();
     } catch (error) {
       const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
       message.error('批量检测失败：' + errorMsg);
@@ -815,7 +825,7 @@ const AdminDashboard = () => {
       } else {
         message.success('检测完成，所有网站状态正常');
       }
-      loadData(pagination.current, pagination.pageSize);
+      refreshData();
     } catch (error) {
       const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
       message.error('检测失败：' + errorMsg);
@@ -915,7 +925,7 @@ const AdminDashboard = () => {
             style={{ width: 300 }}
           />
           <Space size="small" className="header-actions">
-            <Button type="primary" icon={<ReloadOutlined />} onClick={() => loadData(pagination.current || 1, pagination.pageSize || 20)}>
+            <Button type="primary" icon={<ReloadOutlined />} onClick={() => refreshData()}>
               刷新
             </Button>
             <Button type="primary" icon={<FileExcelOutlined />} onClick={handleExcelImportClick}>
@@ -1380,7 +1390,7 @@ const AdminDashboard = () => {
                 }
               }
               setIsDraftVisible(false);
-              loadData(pagination.current, pagination.pageSize);
+              refreshData();
             } catch (error) {
               const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
               message.error('生成失败：' + errorMsg);
