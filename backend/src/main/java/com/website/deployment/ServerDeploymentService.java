@@ -392,8 +392,10 @@ public class ServerDeploymentService {
      * 检测是否是本地部署
      */
     private boolean isLocalhost(String host) {
+        log.info("isLocalhost检查: host={}", host);
         if (host == null) return false;
         if (host.equals("localhost") || host.equals("127.0.0.1") || host.equals("::1") || host.startsWith("127.")) {
+            log.info("匹配localhost/127.x.x.x，返回true");
             return true;
         }
         // 检测本机IP
@@ -404,7 +406,10 @@ public class ServerDeploymentService {
                 java.util.Enumeration<java.net.InetAddress> addresses = ni.getInetAddresses();
                 while (addresses.hasMoreElements()) {
                     java.net.InetAddress addr = addresses.nextElement();
-                    if (addr.getHostAddress().equals(host)) {
+                    String ip = addr.getHostAddress();
+                    log.info("检查本机IP: {}", ip);
+                    if (ip.equals(host)) {
+                        log.info("匹配本机IP，返回true");
                         return true;
                     }
                 }
@@ -412,6 +417,7 @@ public class ServerDeploymentService {
         } catch (Exception e) {
             log.warn("检测本机IP失败: {}", e.getMessage());
         }
+        log.info("未匹配到本机IP，返回false");
         return false;
     }
 
