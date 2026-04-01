@@ -521,7 +521,7 @@ public class CompanyService {
             return companyRepository.save(company);
         }
 
-        WebsiteStatusResult result = deploymentService.checkWebsiteStatus(company.getDomain());
+        WebsiteStatusResult result = deploymentService.checkWebsiteStatus(company.getDomain(), company.getCompanyName());
         company.setWebsiteStatus(result.getStatus());
         company.setStatusDescription(result.getDescription());
         company.setStatusCheckDate(LocalDateTime.now());

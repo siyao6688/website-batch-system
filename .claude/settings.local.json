@@ -78,7 +78,8 @@
       "Bash(ssh root@124.223.45.101 \"cat /var/www/html/aruio.cn/index.html\")",
       "Bash(ssh root@124.223.45.101 \"grep -E ''Static resource not found|Template not found|Failed to|DEBUG|WARN.*resource'' /opt/website-batch-system/backend.log | tail -20\")",
       "Bash(ssh root@124.223.45.101 \"curl -s http://localhost:8080/api/actuator/configprops 2>/dev/null | grep -E ''templates-path|output-path'' || echo ''actuator not available''\")",
-      "Bash(ssh root@124.223.45.101 \"echo ''test content'' > /var/www/html/test-write.txt && cat /var/www/html/test-write.txt && rm /var/www/html/test-write.txt && df -h /var/www/html\")"
+      "Bash(ssh root@124.223.45.101 \"echo ''test content'' > /var/www/html/test-write.txt && cat /var/www/html/test-write.txt && rm /var/www/html/test-write.txt && df -h /var/www/html\")",
+      "Bash(mvn compile:*)"
     ]
   }
 }

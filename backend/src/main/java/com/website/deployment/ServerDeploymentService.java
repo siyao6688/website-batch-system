@@ -447,6 +447,16 @@ public class ServerDeploymentService {
      * @return 状态结果
      */
     public WebsiteStatusResult checkWebsiteStatus(String domain) {
+        return checkWebsiteStatus(domain, null);
+    }
+
+    /**
+     * 检测网站部署状态（包含公司名称检测）
+     * @param domain 域名
+     * @param companyName 公司名称（用于检测网站内容是否包含公司名称）
+     * @return 状态结果
+     */
+    public WebsiteStatusResult checkWebsiteStatus(String domain, String companyName) {
         if (!deploymentEnabled) {
             return new WebsiteStatusResult("disabled", "部署功能未启用");
         }
@@ -466,10 +476,41 @@ public class ServerDeploymentService {
             // 检查nginx配置
             boolean nginxConfigExist = checkNginxConfig(session, domain);
 
-            // 构建状态结果
+            // 新增：检查网站内容是否为空
+            boolean isEmptyWebsite = false;
+            if (filesExist) {
+                isEmptyWebsite = checkWebsiteEmpty(session, domain);
+            }
+
+            // 新增：检查网站是否包含公司名称
+            boolean missingCompanyName = false;
+            if (filesExist && !isEmptyWebsite && companyName != null && !companyName.isEmpty()) {
+                missingCompanyName = !checkWebsiteContainsCompanyName(session, domain, companyName);
+            }
+
+            // 新增：检查网站是否包含错误的外部域名链接
+            boolean hasWrongDomain = false;
+            String wrongDomainDetail = null;
+            if (filesExist && !isEmptyWebsite) {
+                wrongDomainDetail = checkWrongDomainLinks(session, domain);
+                if (wrongDomainDetail != null) {
+                    hasWrongDomain = true;
+                }
+            }
+
+            // 构建状态结果（优先报告更严重的问题）
             String status;
             String description;
-            if (filesExist && nginxConfigExist) {
+            if (isEmptyWebsite) {
+                status = "empty_content";
+                description = "网站内容为空或过少";
+            } else if (missingCompanyName) {
+                status = "missing_company_name";
+                description = "网站内容不包含公司名称: " + companyName;
+            } else if (hasWrongDomain) {
+                status = "wrong_domain_links";
+                description = "网站包含错误的外部域名链接: " + wrongDomainDetail;
+            } else if (filesExist && nginxConfigExist) {
                 status = "normal";
                 description = "网站部署正常";
             } else if (!filesExist && !nginxConfigExist) {
@@ -522,6 +563,95 @@ public class ServerDeploymentService {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * 检查网站内容是否为空或过少
+     * 通过检查index.html文件大小来判断
+     */
+    private boolean checkWebsiteEmpty(Session session, String domain) throws Exception {
+        String indexPath = remoteWebRoot + "/" + domain + "/index.html";
+        // 检查文件大小，小于1000字节视为空网站
+        String checkCmd = String.format("stat -c %s %s 2>/dev/null || echo 0", "'%s'", indexPath);
+        String result = executeCommand(session, checkCmd).trim();
+        try {
+            long fileSize = Long.parseLong(result);
+            log.info("网站 {} index.html 文件大小: {} bytes", domain, fileSize);
+            // 文件小于1000字节视为异常（正常网站至少有基本HTML结构）
+            return fileSize < 1000;
+        } catch (NumberFormatException e) {
+            log.warn("无法解析文件大小: {}", result);
+            return true;
+        }
+    }
+
+    /**
+     * 检查网站内容是否包含公司名称
+     * @return 如果不包含公司名称，返回false表示异常
+     */
+    private boolean checkWebsiteContainsCompanyName(Session session, String domain, String companyName) throws Exception {
+        String indexPath = remoteWebRoot + "/" + domain + "/index.html";
+        // 获取index.html内容
+        String catCmd = String.format("cat %s", indexPath);
+        String content = executeCommand(session, catCmd);
+
+        if (content == null || content.isEmpty()) {
+            log.warn("网站 {} 内容为空", domain);
+            return false;
+        }
+
+        // 检查是否包含公司名称
+        if (companyName != null && !companyName.isEmpty()) {
+            boolean containsName = content.contains(companyName);
+            if (!containsName) {
+                log.warn("网站 {} 不包含公司名称: {}", domain, companyName);
+            }
+            return containsName;
+        }
+
+        // 如果没有提供公司名称，则跳过此检查
+        return true;
+    }
+
+    /**
+     * 检查网站是否包含错误的外部域名链接
+     * 检测index.html中是否包含非本域名的.cn域名链接
+     * @return 如果发现错误域名链接，返回详细信息；否则返回null
+     */
+    private String checkWrongDomainLinks(Session session, String domain) throws Exception {
+        String indexPath = remoteWebRoot + "/" + domain + "/index.html";
+        // 获取index.html内容
+        String catCmd = String.format("cat %s", indexPath);
+        String content = executeCommand(session, catCmd);
+
+        // 检查是否包含http://或https://链接指向其他.cn域名
+        // 正则匹配 http://xxx.cn 或 https://xxx.cn 格式的链接
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+            "(https?://[a-zA-Z0-9.-]+\\.cn)",
+            java.util.regex.Pattern.CASE_INSENSITIVE
+        );
+        java.util.regex.Matcher matcher = pattern.matcher(content);
+
+        StringBuilder wrongDomains = new StringBuilder();
+        while (matcher.find()) {
+            String foundUrl = matcher.group(1);
+            String foundDomain = foundUrl.replaceFirst("https?://", "").toLowerCase();
+
+            // 如果找到的域名不是当前域名或其www子域名，则为错误链接
+            if (!foundDomain.equals(domain.toLowerCase()) &&
+                !foundDomain.equals("www." + domain.toLowerCase())) {
+                if (wrongDomains.length() > 0) {
+                    wrongDomains.append(", ");
+                }
+                wrongDomains.append(foundUrl);
+            }
+        }
+
+        if (wrongDomains.length() > 0) {
+            log.warn("网站 {} 包含错误的外部域名链接: {}", domain, wrongDomains);
+            return wrongDomains.toString();
+        }
+        return null;
     }
 
     /**
