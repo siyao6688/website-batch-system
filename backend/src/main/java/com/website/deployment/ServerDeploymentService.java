@@ -61,10 +61,15 @@ public class ServerDeploymentService {
 
         log.info("开始部署网站 domain: {} 到服务器 {}", domain, serverHost);
 
-        // 检测是否是本地部署
-        boolean isLocalDeployment = isLocalhost(serverHost);
+        // 检测是否是本地部署（文件已在目标位置）
+        String remoteDomainPath = remoteWebRoot + "/" + domain;
+        String localPath = localWebsitePath.toAbsolutePath().toString();
+        boolean isLocalDeployment = localPath.startsWith(remoteWebRoot);
+
+        log.info("本地路径: {}, 远程路径: {}, isLocalDeployment: {}", localPath, remoteDomainPath, isLocalDeployment);
+
         if (isLocalDeployment) {
-            log.info("检测到本地部署，跳过文件上传");
+            log.info("检测到本地部署，文件已在目标位置，跳过SFTP上传");
         }
 
         JSch jsch = new JSch();
@@ -87,7 +92,6 @@ public class ServerDeploymentService {
                 log.info("SFTP连接成功");
 
                 // 创建远程目录
-                String remoteDomainPath = remoteWebRoot + "/" + domain;
                 createRemoteDirectory(sftpChannel, remoteDomainPath);
 
                 // 上传文件
@@ -386,39 +390,6 @@ public class ServerDeploymentService {
     private void reloadNginx(Session session) throws Exception {
         String result = executeCommand(session, nginxReloadCommand);
         log.info("Nginx重载结果: {}", result);
-    }
-
-    /**
-     * 检测是否是本地部署
-     */
-    private boolean isLocalhost(String host) {
-        log.info("isLocalhost检查: host={}", host);
-        if (host == null) return false;
-        if (host.equals("localhost") || host.equals("127.0.0.1") || host.equals("::1") || host.startsWith("127.")) {
-            log.info("匹配localhost/127.x.x.x，返回true");
-            return true;
-        }
-        // 检测本机IP
-        try {
-            java.util.Enumeration<java.net.NetworkInterface> interfaces = java.net.NetworkInterface.getNetworkInterfaces();
-            while (interfaces.hasMoreElements()) {
-                java.net.NetworkInterface ni = interfaces.nextElement();
-                java.util.Enumeration<java.net.InetAddress> addresses = ni.getInetAddresses();
-                while (addresses.hasMoreElements()) {
-                    java.net.InetAddress addr = addresses.nextElement();
-                    String ip = addr.getHostAddress();
-                    log.info("检查本机IP: {}", ip);
-                    if (ip.equals(host)) {
-                        log.info("匹配本机IP，返回true");
-                        return true;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.warn("检测本机IP失败: {}", e.getMessage());
-        }
-        log.info("未匹配到本机IP，返回false");
-        return false;
     }
 
     /**
