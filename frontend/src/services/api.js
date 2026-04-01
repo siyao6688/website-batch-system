@@ -55,6 +55,9 @@ export const companyApi = {
     // 发布公司
     publishCompany: (id) => api.post(`/companies/${id}/publish`),
 
+    // 取消发布公司
+    unpublishCompany: (id) => api.post(`/companies/${id}/unpublish`),
+
     // 批量发布（增加超时时间，因为涉及批量生成和部署）
     batchPublish: (ids) => api.post('/companies/batch/publish', { ids }, {
         timeout: 300000 // 5分钟超时
@@ -94,6 +97,9 @@ export const companyApi = {
     checkAllStatus: () => api.post('/companies/check-all-status', {}, {
         timeout: 300000 // 5分钟超时
     }),
+
+    // 获取统计数据
+    getStats: () => api.get('/companies/stats'),
 
     // 获取公司列表（包含状态过滤）
     getCompanies: (params) => api.get('/companies', { params })

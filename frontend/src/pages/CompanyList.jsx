@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Space, Tag, message, Popconfirm, Modal } from 'antd';
+import { Table, Button, Space, Tag, message, Popconfirm, Modal, Card } from 'antd';
 import { PlusOutlined, DeleteOutlined, EyeOutlined, EditOutlined, PlayCircleOutlined, PauseCircleOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import { companyApi } from '../services/api';
 

@@ -11,7 +11,8 @@ import {
   ExportOutlined, SearchOutlined, CheckCircleOutlined, ClockCircleOutlined,
   DownloadOutlined, ReloadOutlined, PlusSquareOutlined, BankOutlined, UploadOutlined,
   UserOutlined, MailOutlined, GlobalOutlined, IdcardOutlined, PhoneOutlined,
-  ContactsOutlined, HomeOutlined, InfoCircleOutlined, CloseCircleOutlined
+  ContactsOutlined, HomeOutlined, InfoCircleOutlined, CloseCircleOutlined,
+  SafetyCertificateOutlined, FileExcelOutlined, RocketOutlined, SyncOutlined, MonitorOutlined
 } from '@ant-design/icons';
 import { companyApi, templateApi, excelApi } from '../services/api';
 import './AdminDashboard.css';
@@ -36,7 +37,7 @@ const AdminDashboard = () => {
   const [stats, setStats] = useState({
     total: 0,
     published: 0,
-    active: 0,
+    normal: 0,
     hasWebsite: 0
   });
 
@@ -113,6 +114,12 @@ const AdminDashboard = () => {
           statusTag = <Tag color="blue">待检测</Tag>;
         } else if (record.websiteStatus === 'normal') {
           statusTag = <Tag color="green">正常</Tag>;
+        } else if (record.websiteStatus === 'empty_content') {
+          statusTag = <Tag color="red">内容为空</Tag>;
+        } else if (record.websiteStatus === 'missing_company_name') {
+          statusTag = <Tag color="red">缺少公司名</Tag>;
+        } else if (record.websiteStatus === 'wrong_domain_links') {
+          statusTag = <Tag color="red">域名链接错误</Tag>;
         } else if (record.websiteStatus === 'files_missing') {
           statusTag = <Tag color="orange">文件缺失</Tag>;
         } else if (record.websiteStatus === 'nginx_missing') {
@@ -180,7 +187,7 @@ const AdminDashboard = () => {
           <Tooltip title="生成网站">
             <Button
               type="text"
-              icon={<PlusSquareOutlined />}
+              icon={<RocketOutlined />}
               onClick={() => handleGenerateWebsite(record)}
             />
           </Tooltip>
@@ -194,7 +201,7 @@ const AdminDashboard = () => {
               <Tooltip title="重新发布">
                 <Button
                   type="text"
-                  icon={<ReloadOutlined />}
+                  icon={<SyncOutlined />}
                 />
               </Tooltip>
             </Popconfirm>
@@ -217,7 +224,7 @@ const AdminDashboard = () => {
             <Tooltip title="检测状态">
               <Button
                 type="text"
-                icon={<InfoCircleOutlined />}
+                icon={<MonitorOutlined />}
                 onClick={() => handleCheckStatus(record.id)}
               />
             </Tooltip>
@@ -402,7 +409,22 @@ const AdminDashboard = () => {
   useEffect(() => {
     loadData(1, 20);
     loadTemplates();
+    loadStats();
   }, []);
+
+  const loadStats = async () => {
+    try {
+      const response = await companyApi.getStats();
+      setStats({
+        total: response.data.total || 0,
+        published: response.data.published || 0,
+        normal: response.data.normal || 0,
+        hasWebsite: response.data.hasWebsite || 0
+      });
+    } catch (error) {
+      console.error('加载统计失败:', error);
+    }
+  };
 
   const loadData = async (page = 1, pageSize = 20) => {
     setLoading(true);
@@ -431,12 +453,10 @@ const AdminDashboard = () => {
           pageSize: companiesResponse.data.pageSize || validPageSize,
           total: companiesResponse.data.totalElements || 0
         });
-        updateStatsFromTotal(companiesResponse.data.totalElements || 0, companiesResponse.data.content);
       } else if (Array.isArray(companiesResponse.data)) {
         // 兼容旧的非分页响应
         setCompanies(companiesResponse.data);
         setFilteredCompanies(companiesResponse.data);
-        updateStats(companiesResponse.data);
       }
 
       if (Array.isArray(templatesResponse.data)) {
@@ -450,15 +470,6 @@ const AdminDashboard = () => {
     }
   };
 
-  const updateStatsFromTotal = (total, data) => {
-    setStats({
-      total: total,
-      published: data.filter(c => c.isPublished).length,
-      active: data.filter(c => c.isActive).length,
-      hasWebsite: data.filter(c => c.hasWebsite).length
-    });
-  };
-
   const loadTemplates = async () => {
     try {
       const response = await templateApi.getAllTemplates();
@@ -468,15 +479,6 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('加载模板失败:', error);
     }
-  };
-
-  const updateStats = (data) => {
-    setStats({
-      total: data.length,
-      published: data.filter(c => c.isPublished).length,
-      active: data.filter(c => c.isActive).length,
-      hasWebsite: data.filter(c => c.hasWebsite).length
-    });
   };
 
   // 处理菜单点击
@@ -838,6 +840,7 @@ const AdminDashboard = () => {
       loadData(1, pagination.pageSize);
       return;
     }
+
     setLoading(true);
     try {
       const response = await companyApi.getCompanies({
@@ -856,7 +859,6 @@ const AdminDashboard = () => {
           pageSize: response.data.pageSize || pagination.pageSize,
           total: response.data.totalElements || 0
         });
-        updateStatsFromTotal(response.data.totalElements || 0, response.data.content);
       }
     } catch (error) {
       const errorMsg = error.response?.data?.message || error.response?.data || error.message || '未知错误';
@@ -868,122 +870,85 @@ const AdminDashboard = () => {
 
   return (
     <Layout className="admin-layout">
-      <Sider width={260} className="admin-sider">
-        <div className="logo-container">
+      <Header className="admin-header">
+        <div className="header-left">
           <DashboardOutlined className="logo-icon" />
           <span className="logo-text">网站批量生成系统</span>
         </div>
-
-        <div className="menu-container">
-          <Menu
-            selectedKeys={[selectedMenuKey]}
-            items={[
-              {
-                key: 'overview',
-                icon: <DashboardOutlined />,
-                label: '数据概览',
-                onClick: () => handleMenuClick('overview')
-              },
-              {
-                key: 'companies',
-                icon: <BankOutlined />,
-                label: '公司管理',
-                onClick: () => handleMenuClick('companies')
-              },
-              {
-                key: 'templates',
-                icon: <FileTextOutlined />,
-                label: '模板管理',
-                onClick: () => handleMenuClick('templates')
-              },
-              {
-                key: 'generate',
-                icon: <SettingOutlined />,
-                label: '网站生成',
-                onClick: () => message.info('网站生成功能开发中')
-              },
-              {
-                key: 'settings',
-                icon: <SettingOutlined />,
-                label: '系统设置',
-                onClick: () => message.info('系统设置功能开发中')
-              }
-            ]}
+        <Menu
+          mode="horizontal"
+          selectedKeys={[selectedMenuKey]}
+          className="top-menu"
+          items={[
+            {
+              key: 'overview',
+              icon: <DashboardOutlined />,
+              label: '数据概览',
+              onClick: () => handleMenuClick('overview')
+            },
+            {
+              key: 'templates',
+              icon: <FileTextOutlined />,
+              label: '模板管理',
+              onClick: () => handleMenuClick('templates')
+            },
+            {
+              key: 'generate',
+              icon: <SettingOutlined />,
+              label: '网站生成',
+              onClick: () => message.info('网站生成功能开发中')
+            },
+            {
+              key: 'settings',
+              icon: <SettingOutlined />,
+              label: '系统设置',
+              onClick: () => message.info('系统设置功能开发中')
+            }
+          ]}
+        />
+        <div className="header-right">
+          <Input
+            placeholder="搜索公司名称、域名、备案号..."
+            prefix={<SearchOutlined />}
+            onChange={(e) => handleSearch(e.target.value)}
+            allowClear
+            style={{ width: 300 }}
           />
+          <Space size="small" className="header-actions">
+            <Button type="primary" icon={<ReloadOutlined />} onClick={() => loadData(pagination.current || 1, pagination.pageSize || 20)}>
+              刷新
+            </Button>
+            <Button type="primary" icon={<FileExcelOutlined />} onClick={handleExcelImportClick}>
+              导入
+            </Button>
+            <Dropdown menu={{
+              items: [
+                {
+                  key: 'profile',
+                  icon: <UserOutlined />,
+                  label: '个人资料',
+                  onClick: () => message.info('个人资料功能开发中')
+                },
+                {
+                  type: 'divider'
+                },
+                {
+                  key: 'logout',
+                  icon: <ExportOutlined />,
+                  label: '退出登录',
+                  onClick: handleLogout
+                }
+              ]
+            }}>
+              <Button type="text" icon={<UserOutlined />} style={{ color: '#1890ff' }}>
+                {username}
+              </Button>
+            </Dropdown>
+          </Space>
         </div>
-      </Sider>
+      </Header>
 
-      <Layout>
-        <Header className="admin-header">
-          <div className="header-content">
-            <Input
-              placeholder="搜索公司名称、域名、备案号..."
-              prefix={<SearchOutlined />}
-              onChange={(e) => handleSearch(e.target.value)}
-              allowClear
-              style={{ width: 400 }}
-            />
-            <Space size="large" className="header-actions">
-              <Button icon={<ReloadOutlined />} onClick={() => loadData(pagination.current || 1, pagination.pageSize || 20)}>
-                刷新
-              </Button>
-              <Button type="primary" icon={<ExportOutlined />} onClick={() => message.info('导出数据功能开发中')}>
-                导出数据
-              </Button>
-              <Dropdown menu={{
-                items: [
-                  {
-                    key: 'import',
-                    icon: <UploadOutlined />,
-                    label: '导入Excel',
-                    onClick: handleExcelImportClick
-                  },
-                  {
-                    key: 'export',
-                    icon: <ExportOutlined />,
-                    label: '导出数据',
-                    onClick: () => message.info('导出数据功能开发中')
-                  },
-                  {
-                    key: 'backup',
-                    icon: <DownloadOutlined />,
-                    label: '备份数据',
-                    onClick: () => message.info('备份数据功能开发中')
-                  }
-                ]
-              }}>
-                <Button icon={<PlusOutlined />}>
-                  新增
-                </Button>
-              </Dropdown>
-              <Dropdown menu={{
-                items: [
-                  {
-                    key: 'profile',
-                    icon: <UserOutlined />,
-                    label: '个人资料',
-                    onClick: () => message.info('个人资料功能开发中')
-                  },
-                  {
-                    type: 'divider'
-                  },
-                  {
-                    key: 'logout',
-                    icon: <ExportOutlined />,
-                    label: '退出登录',
-                    onClick: handleLogout
-                  }
-                ]
-              }}>
-                <Button type="text" icon={<UserOutlined />} style={{ color: '#1890ff' }}>
-                  {username}
-                </Button>
-              </Dropdown>
-            </Space>
-          </div>
-        </Header>
-
-        <Content className="admin-content">
+      <Content className="admin-content">
           {selectedMenuKey === 'overview' && (<>
           <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
             <Col xs={24} sm={12} md={6}>
@@ -1010,7 +975,7 @@ const AdminDashboard = () => {
               <Card hoverable>
                 <Statistic
                   title="正常状态"
-                  value={stats.active}
+                  value={stats.normal}
                   prefix={<CheckCircleOutlined />}
                   styles={{ content: { color: '#52c41a' } }}
                 />
@@ -1034,78 +999,71 @@ const AdminDashboard = () => {
                 <span className="card-title">公司列表</span>
                 <Badge count={pagination.total} />
               </Space>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {/* 第一行：筛选和检测 */}
-                <Space>
-                  <Select
-                    placeholder="发布状态"
-                    value={publishFilter}
-                    onChange={handlePublishFilterChange}
-                    style={{ width: 120 }}
-                  >
-                    <Select.Option value="all">全部</Select.Option>
-                    <Select.Option value="unpublished">未发布</Select.Option>
-                    <Select.Option value="published">已发布</Select.Option>
-                  </Select>
-                  <Select
-                    placeholder="网站状态"
-                    value={websiteStatusFilter}
-                    onChange={handleWebsiteStatusFilterChange}
-                    style={{ width: 120 }}
-                  >
-                    <Select.Option value="all">全部</Select.Option>
-                    <Select.Option value="normal">正常</Select.Option>
-                    <Select.Option value="problem">有问题</Select.Option>
-                    <Select.Option value="unchecked">待检测</Select.Option>
-                  </Select>
-                  <Button icon={<InfoCircleOutlined />} loading={batchLoading} onClick={handleCheckAllStatus}>
-                    检测所有网站
-                  </Button>
-                  <Button icon={<PlusOutlined />} type="primary" onClick={() => {
-                    setEditingCompany(null);
-                    setIsModalVisible(true);
-                  }}>
-                    新增公司
-                  </Button>
-                  <Button icon={<UploadOutlined />} onClick={handleExcelImportClick}>
-                    导入Excel
-                  </Button>
-                </Space>
-                {/* 第二行：批量操作按钮 */}
-                {selectedRowKeys.length > 0 && (
+              <div className="toolbar">
+                <div className="toolbar-left">
+                  <Space size="middle">
+                    <Space>
+                      <label style={{ color: '#666', fontWeight: 500 }}>发布状态</label>
+                      <Select
+                        value={publishFilter}
+                        onChange={handlePublishFilterChange}
+                        style={{ width: 100 }}
+                      >
+                        <Select.Option value="all">全部</Select.Option>
+                        <Select.Option value="unpublished">未发布</Select.Option>
+                        <Select.Option value="published">已发布</Select.Option>
+                      </Select>
+                    </Space>
+                    <Space>
+                      <label style={{ color: '#666', fontWeight: 500 }}>网站状态</label>
+                      <Select
+                        value={websiteStatusFilter}
+                        onChange={handleWebsiteStatusFilterChange}
+                        style={{ width: 100 }}
+                      >
+                        <Select.Option value="all">全部</Select.Option>
+                        <Select.Option value="normal">正常</Select.Option>
+                        <Select.Option value="abnormal">异常</Select.Option>
+                      </Select>
+                    </Space>
+                  </Space>
+                </div>
+                <div className="toolbar-right">
                   <Space>
-                    <Button
-                      type="primary"
-                      icon={<CheckCircleOutlined />}
-                      loading={batchLoading}
-                      onClick={handleBatchPublish}
-                    >
-                      批量发布 ({selectedRowKeys.length})
+                    <Button type="primary" icon={<SafetyCertificateOutlined />} loading={batchLoading} onClick={handleCheckAllStatus}>
+                      检测所有
                     </Button>
-                    <Button
-                      icon={<ReloadOutlined />}
-                      loading={batchLoading}
-                      onClick={handleBatchRepublish}
-                    >
-                      批量重新发布 ({selectedRowKeys.length})
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+                      setEditingCompany(null);
+                      setIsModalVisible(true);
+                    }}>
+                      新增公司
                     </Button>
-                    <Button
-                      icon={<PlusSquareOutlined />}
-                      loading={batchLoading}
-                      onClick={handleBatchGenerate}
-                    >
-                      批量生成 ({selectedRowKeys.length})
-                    </Button>
-                    <Button
-                      icon={<InfoCircleOutlined />}
-                      loading={batchLoading}
-                      onClick={handleBatchCheckStatus}
-                    >
-                      批量检测 ({selectedRowKeys.length})
+                    <Button type="primary" icon={<FileExcelOutlined />} onClick={handleExcelImportClick}>
+                      导入Excel
                     </Button>
                   </Space>
-                )}
+                </div>
               </div>
+              {selectedRowKeys.length > 0 && (
+                <div className="batch-toolbar">
+                  <Space>
+                    <span style={{ color: '#1890ff', fontWeight: 500 }}>已选 {selectedRowKeys.length} 项：</span>
+                    <Button size="small" icon={<CheckCircleOutlined />} loading={batchLoading} onClick={handleBatchPublish}>
+                      批量发布
+                    </Button>
+                    <Button size="small" icon={<SyncOutlined />} loading={batchLoading} onClick={handleBatchRepublish}>
+                      批量重新发布
+                    </Button>
+                    <Button size="small" icon={<RocketOutlined />} loading={batchLoading} onClick={handleBatchGenerate}>
+                      批量生成
+                    </Button>
+                    <Button size="small" icon={<MonitorOutlined />} loading={batchLoading} onClick={handleBatchCheckStatus}>
+                      批量检测
+                    </Button>
+                  </Space>
+                </div>
+              )}
             </div>
 
             <Table
@@ -1162,7 +1120,6 @@ const AdminDashboard = () => {
             <CompanyList embedded={true} />
           )}
         </Content>
-      </Layout>
 
       {/* 编辑/新增模态框 */}
       <Modal

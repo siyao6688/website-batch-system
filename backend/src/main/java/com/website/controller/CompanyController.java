@@ -46,6 +46,7 @@ public class CompanyController {
 
             // 如果有筛选条件，使用筛选查询
             if (!"all".equals(publishStatus) || !"all".equals(websiteStatus)) {
+                log.info("筛选查询: publishStatus={}, websiteStatus={}", publishStatus, websiteStatus);
                 Page<Company> companyPage = companyService.getCompaniesWithFilters(publishStatus, websiteStatus, pageable);
                 Map<String, Object> response = new HashMap<>();
                 response.put("content", companyPage.getContent());
@@ -74,6 +75,17 @@ public class CompanyController {
         } catch (Exception e) {
             log.error("Failed to get companies", e);
             return ResponseEntity.badRequest().body("Failed to get companies: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/stats")
+    public ResponseEntity<?> getStats() {
+        try {
+            Map<String, Object> stats = companyService.getStats();
+            return ResponseEntity.ok(stats);
+        } catch (Exception e) {
+            log.error("Failed to get stats", e);
+            return ResponseEntity.badRequest().body("Failed to get stats: " + e.getMessage());
         }
     }
 
@@ -149,6 +161,19 @@ public class CompanyController {
         } catch (Exception e) {
             log.error("Failed to publish company", e);
             return ResponseEntity.badRequest().body("Failed to publish company: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/{id}/unpublish")
+    public ResponseEntity<?> unpublishCompany(@PathVariable Long id) {
+        try {
+            Company company = companyService.unpublishCompany(id);
+            return ResponseEntity.ok(company);
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Failed to unpublish company", e);
+            return ResponseEntity.badRequest().body("Failed to unpublish company: " + e.getMessage());
         }
     }
 

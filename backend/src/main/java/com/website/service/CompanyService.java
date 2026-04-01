@@ -20,7 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.nio.file.Path;
 
@@ -92,6 +94,19 @@ public class CompanyService {
      */
     public Page<Company> getCompaniesWithFilters(String publishStatus, String websiteStatus, Pageable pageable) {
         return companyRepository.findByFilters(publishStatus, websiteStatus, pageable);
+    }
+
+    /**
+     * 获取统计数据（所有公司）
+     */
+    public Map<String, Object> getStats() {
+        List<Company> allCompanies = companyRepository.findAllByIsDeletedFalse();
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("total", allCompanies.size());
+        stats.put("published", allCompanies.stream().filter(c -> Boolean.TRUE.equals(c.getIsPublished())).count());
+        stats.put("normal", allCompanies.stream().filter(c -> "normal".equals(c.getWebsiteStatus())).count());
+        stats.put("hasWebsite", allCompanies.stream().filter(c -> Boolean.TRUE.equals(c.getHasWebsite())).count());
+        return stats;
     }
 
     public Company getCompanyById(Long id) {
@@ -506,6 +521,18 @@ public class CompanyService {
     @Transactional
     public Company republishCompany(Long id) throws Exception {
         return publishCompany(id); // 直接调用publishCompany，它会覆盖现有网站
+    }
+
+    /**
+     * 取消发布公司网站
+     */
+    @Transactional
+    public Company unpublishCompany(Long id) {
+        Company company = getCompanyById(id);
+        company.setIsPublished(false);
+        company.setWebsiteStatus(null);
+        company.setStatusDescription("网站未发布");
+        return companyRepository.save(company);
     }
 
     /**

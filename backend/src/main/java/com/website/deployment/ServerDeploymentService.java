@@ -259,11 +259,8 @@ public class ServerDeploymentService {
             "    # 错误页面\n" +
             "    error_page 404 /index.html;\n" +
             "    error_page 500 502 503 504 /index.html;\n" +
-            "\n" +
-            "    access_log /var/log/nginx/%s-access.log;\n" +
-            "    error_log /var/log/nginx/%s-error.log;\n" +
             "}\n",
-            domain, domain, remoteWebRoot, domain, domain, domain
+            domain, domain, remoteWebRoot, domain
         );
     }
 
