@@ -60,3 +60,16 @@ logging:
   level:
     com.website: debug
     org.springframework.web: info
+
+# JWT安全配置
+jwt:
+  # 密钥必须至少256位(32字节)，请生产环境使用强随机密钥
+  secret: website-batch-system-production-secret-key-minimum-256-bits-required-for-hs256
+  expiration: 86400000  # 24小时(毫秒)
+
+# CORS安全配置
+cors:
+  # 允许的来源列表（生产环境应配置具体域名）
+  allowed-origins: http://localhost:5173,http://127.0.0.1:5173,http://124.223.45.101,http://124.223.45.101:8088,http://124.223.45.101:80
+  allow-credentials: true
+  max-age: 3600

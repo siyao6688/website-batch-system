@@ -3,6 +3,7 @@ package com.website.controller;
 import com.website.dto.LoginRequest;
 import com.website.dto.LoginResponse;
 import com.website.entity.User;
+import com.website.security.JwtTokenUtil;
 import com.website.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,7 @@ import java.util.Optional;
 public class AuthController {
 
     private final UserService userService;
+    private final JwtTokenUtil jwtTokenUtil;
 
     @GetMapping("/health")
     public ResponseEntity<String> health() {
@@ -45,8 +47,8 @@ public class AuthController {
             User user = userOpt.get();
             log.info("用户登录成功: {}, 角色: {}", username, user.getRole());
 
-            // 生成简单的token（这里可以使用JWT，简化起见使用用户名+时间戳）
-            String token = generateSimpleToken(username);
+            // 使用JWT生成安全的token
+            String token = jwtTokenUtil.generateToken(username, user.getRole());
 
             return ResponseEntity.ok(LoginResponse.builder()
                     .success(true)
@@ -68,13 +70,13 @@ public class AuthController {
     @GetMapping("/validate")
     public ResponseEntity<LoginResponse> validateToken(@RequestParam String token) {
         try {
-            // 简化验证：检查token是否有效
-            // 实际应该使用JWT验证
-            if (isValidToken(token)) {
-                // 从token中解析用户名
-                String username = extractUsernameFromToken(token);
+            // 使用JWT验证token
+            if (jwtTokenUtil.isValidToken(token)) {
+                String username = jwtTokenUtil.extractUsername(token);
+                String role = jwtTokenUtil.extractRole(token);
+
                 Optional<User> userOpt = userService.findByUsername(username);
-                if (userOpt.isPresent()) {
+                if (userOpt.isPresent() && jwtTokenUtil.validateToken(token, username)) {
                     User user = userOpt.get();
                     return ResponseEntity.ok(LoginResponse.builder()
                             .success(true)
@@ -97,48 +99,6 @@ public class AuthController {
                     .success(false)
                     .message("Token验证失败")
                     .build());
-        }
-    }
-
-    private String generateSimpleToken(String username) {
-        // 简化token生成：用户名 + 时间戳 + 随机数
-        long timestamp = System.currentTimeMillis();
-        int random = (int) (Math.random() * 10000);
-        return username + "|" + timestamp + "|" + random;
-    }
-
-    private boolean isValidToken(String token) {
-        if (token == null || token.isEmpty()) {
-            return false;
-        }
-
-        try {
-            String[] parts = token.split("\\|");
-            if (parts.length != 3) {
-                return false;
-            }
-
-            @SuppressWarnings("unused")
-            String username = parts[0];
-            long timestamp = Long.parseLong(parts[1]);
-
-            // 检查token是否在24小时内生成
-            long currentTime = System.currentTimeMillis();
-            long tokenAge = currentTime - timestamp;
-            long maxAge = 24 * 60 * 60 * 1000; // 24小时
-
-            return tokenAge <= maxAge;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private String extractUsernameFromToken(String token) {
-        try {
-            String[] parts = token.split("\\|");
-            return parts[0];
-        } catch (Exception e) {
-            return "";
         }
     }
 }

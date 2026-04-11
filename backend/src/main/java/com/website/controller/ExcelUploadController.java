@@ -18,7 +18,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/excel")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173")
 public class ExcelUploadController {
 
     private final ExcelParser excelParser;

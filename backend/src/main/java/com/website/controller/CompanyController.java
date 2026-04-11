@@ -25,7 +25,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/companies")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173")
 public class CompanyController {
 
     private final CompanyService companyService;

@@ -9,6 +9,7 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.regex.Pattern;
 
 /**
  * 网站状态检测结果
@@ -16,6 +17,9 @@ import java.nio.file.Path;
 @Slf4j
 @Service
 public class ServerDeploymentService {
+
+    // 域名验证正则：只允许字母、数字、点、连字符（防止命令注入）
+    private static final Pattern DOMAIN_PATTERN = Pattern.compile("^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$");
 
     @Value("${website.deployment.server.host}")
     private String serverHost;
@@ -51,9 +55,29 @@ public class ServerDeploymentService {
     private int retryDelayMs;
 
     /**
+     * 验证域名格式，防止命令注入
+     * 只允许字母、数字、点、连字符
+     */
+    private void validateDomain(String domain) {
+        if (domain == null || domain.isEmpty()) {
+            throw new IllegalArgumentException("域名不能为空");
+        }
+        if (!DOMAIN_PATTERN.matcher(domain).matches()) {
+            throw new IllegalArgumentException("域名格式无效，只允许字母、数字、点和连字符: " + domain);
+        }
+        // 额外检查：不允许路径遍历字符
+        if (domain.contains("..") || domain.contains("/") || domain.contains("\\")) {
+            throw new IllegalArgumentException("域名包含非法字符: " + domain);
+        }
+    }
+
+    /**
      * 部署网站到远程服务器
      */
     public void deployWebsite(String domain, Path localWebsitePath) throws Exception {
+        // 安全检查：验证域名格式
+        validateDomain(domain);
+
         if (!deploymentEnabled) {
             log.info("部署功能已禁用，跳过部署 domain: {}", domain);
             return;
@@ -454,6 +478,13 @@ public class ServerDeploymentService {
      * @return 状态结果
      */
     public WebsiteStatusResult checkWebsiteStatus(String domain, String companyName) {
+        // 安全检查：验证域名格式
+        try {
+            validateDomain(domain);
+        } catch (IllegalArgumentException e) {
+            return new WebsiteStatusResult("invalid_domain", e.getMessage());
+        }
+
         if (!deploymentEnabled) {
             return new WebsiteStatusResult("disabled", "部署功能未启用");
         }

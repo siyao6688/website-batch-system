@@ -10,6 +10,8 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
@@ -19,6 +21,16 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Value("${website.templates-path:src/main/resources/templates}")
     private String templatesPath;
+
+    // CORS配置 - 从配置文件读取允许的来源
+    @Value("${cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173}")
+    private String allowedOrigins;
+
+    @Value("${cors.allow-credentials:true}")
+    private boolean allowCredentials;
+
+    @Value("${cors.max-age:3600}")
+    private long maxAge;
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
@@ -52,15 +64,14 @@ public class WebConfig implements WebMvcConfigurer {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
 
-        // 允许的来源
-        config.addAllowedOrigin("http://localhost:5173");
-        config.addAllowedOrigin("http://127.0.0.1:5173");
-        // 服务器部署地址
-        config.addAllowedOrigin("http://124.223.45.101");
-        config.addAllowedOrigin("http://124.223.45.101:8088");
-        config.addAllowedOrigin("http://124.223.45.101:80");
-        // 允许所有来源用于测试（生产环境应限制）
-        config.addAllowedOriginPattern("*");
+        // 从配置文件解析允许的来源列表
+        List<String> origins = Arrays.asList(allowedOrigins.split(","));
+        for (String origin : origins) {
+            String trimmedOrigin = origin.trim();
+            if (!trimmedOrigin.isEmpty()) {
+                config.addAllowedOrigin(trimmedOrigin);
+            }
+        }
 
         // 允许的 HTTP 方法
         config.addAllowedMethod("OPTIONS");
@@ -82,10 +93,10 @@ public class WebConfig implements WebMvcConfigurer {
         config.addExposedHeader("Content-Disposition");
 
         // 允许携带凭证
-        config.setAllowCredentials(true);
+        config.setAllowCredentials(allowCredentials);
 
         // 预检请求缓存时间（秒）
-        config.setMaxAge(3600L);
+        config.setMaxAge(maxAge);
 
         // 注册 CORS 配置，应用于所有路径
         source.registerCorsConfiguration("/**", config);
